@@ -7,3 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = "2.33.0"
+anyhow = "1.0.25"
+
+# logging
+slog = {version = "2.5.2", features=["max_level_trace"] }
+slog-async = "2.3.0"
+slog-term = "2.4.2"
+slog-scope = "4.3.0"
