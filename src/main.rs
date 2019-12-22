@@ -16,83 +16,47 @@ use std::sync::Arc;
 pub mod util {
     use anyhow::{anyhow, Context, Result};
     use std::fmt::Display;
+    use std::io::Read;
     use std::str::FromStr;
     use std::{fs, io, io::BufRead, path};
 
-    pub fn read_lines_of<T, P>(path: P) -> Result<Vec<T>>
-    where
-        T: FromStr,
-        P: AsRef<path::Path>,
-        <T as std::str::FromStr>::Err: Display,
-    {
+    pub fn read_to_string<P: AsRef<path::Path>>(path: P) -> Result<String> {
         slog_scope::trace!("Reading content of file: {}", path.as_ref().display());
         let mut f = fs::File::open(&path)
             .with_context(|| format!("Unable to open path: {}", path.as_ref().display()))?;
 
-        let mut result = Vec::new();
+        let mut result = String::new();
 
-        for line in io::BufReader::new(f).lines() {
-            let text = line?;
-            let t = T::from_str(&text).map_err(|e| anyhow!("{}", e))?;
-            result.push(t);
-        }
-
+        f.read_to_string(&mut result)?;
         Ok(result)
     }
 
-    pub fn read_intcode<P: AsRef<path::Path>>(path: P) -> Result<Vec<u64>> {
-        slog_scope::trace!("Reading content of file: {} as IntCode", path.as_ref().display());
-        let mut f = fs::File::open(&path)
-            .with_context(|| format!("Unable to open path: {}", path.as_ref().display()))?;
+    pub fn parse_int_lines(input: &str) -> Result<Vec<u64>> {
+        input
+            .lines()
+            .map(|l| u64::from_str(&l).map_err(|e| anyhow!("{}", e)))
+            .collect()
+    }
 
-        let mut result = Vec::new();
-
-        for line in io::BufReader::new(f).lines() {
-            let text = line?;
-            for ns in text.split(",") {
-                let int = u64::from_str(ns).map_err(|e| anyhow!("{}", e))?;
-                result.push(int)
-            }
-        }
-        Ok(result)
+    pub fn parse_intcode(input: &str) -> Result<Vec<u64>> {
+        input
+            .lines()
+            .flat_map(|l| l.split(","))
+            .map(|ns| u64::from_str(ns).map_err(|e| anyhow!("{}", e)))
+            .collect()
     }
 }
 
-mod subcommand {
-    use anyhow::{Context, Result};
-    use clap::ArgMatches;
-
-    pub fn day1(args: &ArgMatches) -> Result<()> {
-        let modules: Vec<u64> = crate::util::read_lines_of(args.value_of("input").unwrap())?;
-        let fuel = crate::challenges::day1::total_fuel(modules.into_iter());
-        println!("{}", fuel);
-        Ok(())
-    }
-
-    pub fn day1p2(args: &ArgMatches) -> Result<()> {
-        let modules: Vec<u64> = crate::util::read_lines_of(args.value_of("input").unwrap())?;
-        let fuel = crate::challenges::day1::total_fuel_recursive(modules.into_iter());
-        println!("{}", fuel);
-        Ok(())
-    }
-
-    pub fn day2(args: &ArgMatches) -> Result<()> {
-        let mut intcode: Vec<u64> = crate::util::read_intcode(args.value_of("input").unwrap())?;
-        intcode[1] = 12;
-        intcode[2] = 02;
-        let finished = crate::challenges::day2::run_intcode(intcode);
-        println!("{}", finished[0]);
-        Ok(())
-    }
-
-    pub fn test(args: &ArgMatches) -> Result<()> {
-        Ok(())
-    }
-}
-
+pub mod intcode;
 pub mod challenges {
     pub mod day1;
     pub mod day2;
+
+    #[cfg(test)]
+    mod test {
+        pub const DAY1_INPUT: &str = include_str!("../input/day1");
+        pub const DAY2_INPUT: &str = include_str!("../input/day2");
+    }
 }
 
 fn run(args: &ArgMatches) -> Result<()> {
@@ -101,10 +65,22 @@ fn run(args: &ArgMatches) -> Result<()> {
     trace!(log, "Args: {:?}", args);
 
     match args.subcommand() {
-        ("day1", Some(sub_m)) => subcommand::day1(sub_m)?,
-        ("day1-part2", Some(sub_m)) => subcommand::day1p2(sub_m)?,
-        ("day2", Some(sub_m)) => subcommand::day2(sub_m)?,
-        ("test", Some(sub_m)) => subcommand::test(sub_m)?,
+        ("day1", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day1::day1_part1(&input)?);
+        },
+        ("day1-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day1::day1_part2(&input)?);
+        },
+        ("day2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day2::day2_part1(&input)?);
+        },
+        ("day2-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day2::day2_part2(&input)?);
+        },
         ("", _) => Err(anyhow!("Please provide a command:\n{}", args.usage()))?,
         subc => Err(anyhow!("Unknown command: {:?}\n{}", subc, args.usage()))?,
     }
@@ -159,6 +135,11 @@ fn get_args() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name("day2")
                 .about("1202 Program Alarm")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day2-part2")
+                .about("solve inputs for gravity assist")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))

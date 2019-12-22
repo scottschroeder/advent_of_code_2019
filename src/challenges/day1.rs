@@ -1,4 +1,18 @@
+use crate::util::parse_int_lines;
+use anyhow::{anyhow, Context, Result};
 type MassUnit = u64;
+
+pub fn day1_part1(input: &str) -> Result<String> {
+    let modules = parse_int_lines(input)?;
+    let fuel = crate::challenges::day1::total_fuel(modules.into_iter());
+    Ok(format!("{}", fuel))
+}
+
+pub fn day1_part2(input: &str) -> Result<String> {
+    let modules = parse_int_lines(input)?;
+    let fuel = crate::challenges::day1::total_fuel_recursive(modules.into_iter());
+    Ok(format!("{}", fuel))
+}
 
 fn fuel_from_mass(mass: MassUnit) -> u64 {
     if mass < 7 {
@@ -29,7 +43,8 @@ pub fn total_fuel_recursive(modules: impl Iterator<Item = MassUnit>) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use crate::challenges::day1::{fuel_from_mass, recursive_fuel_from_mass};
+    use super::*;
+    use crate::challenges::test::*;
 
     #[test]
     fn fuel_from_mass_single() {
@@ -44,5 +59,14 @@ mod test {
         assert_eq!(recursive_fuel_from_mass(14), 2);
         assert_eq!(recursive_fuel_from_mass(1969), 966);
         assert_eq!(recursive_fuel_from_mass(100756), 50346);
+    }
+
+    #[test]
+    fn day1part1() {
+        assert_eq!(day1_part1(DAY1_INPUT).unwrap().as_str(), "3402634")
+    }
+    #[test]
+    fn day1part2() {
+        assert_eq!(day1_part2(DAY1_INPUT).unwrap().as_str(), "5101069")
     }
 }
