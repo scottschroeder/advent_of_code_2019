@@ -1,7 +1,9 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
+
 #[macro_use]
 extern crate clap;
-use clap::{Arg, SubCommand, ArgMatches};
+
+use clap::{Arg, ArgMatches, SubCommand};
 
 #[macro_use]
 extern crate slog;
@@ -11,17 +13,74 @@ extern crate slog_term;
 use slog::Drain;
 use std::sync::Arc;
 
+pub mod util {
+    use anyhow::{anyhow, Context, Result};
+    use std::fmt::Display;
+    use std::str::FromStr;
+    use std::{fs, io, io::BufRead, path};
+
+    pub fn read_lines_of<T, P>(path: P) -> Result<Vec<T>>
+    where
+        T: FromStr,
+        P: AsRef<path::Path>,
+        <T as std::str::FromStr>::Err: Display,
+    {
+        slog_scope::trace!("Reading content of file: {}", path.as_ref().display());
+        let mut f = fs::File::open(&path)
+            .with_context(|| format!("Unable to open path: {}", path.as_ref().display()))?;
+
+        let mut result = Vec::new();
+
+        for line in io::BufReader::new(f).lines() {
+            let text = line?;
+            let t = T::from_str(&text).map_err(|e| anyhow!("{}", e))?;
+            result.push(t);
+        }
+        Ok(result)
+    }
+}
+
 mod subcommand {
-    use clap::ArgMatches;
     use anyhow::{Context, Result};
+    use clap::ArgMatches;
+
     pub fn day1(args: &ArgMatches) -> Result<()> {
+        let modules: Vec<u64> = crate::util::read_lines_of(args.value_of("input").unwrap())?;
+        let fuel = crate::challenges::day1::total_fuel(modules.into_iter());
+        println!("{}", fuel);
         Ok(())
     }
 
     pub fn test(args: &ArgMatches) -> Result<()> {
         Ok(())
     }
+}
 
+pub mod challenges {
+    pub mod day1 {
+        type MassUnit = u64;
+
+        fn fuel_from_mass(mass: MassUnit) -> u64 {
+            (mass - 6) / 3
+        }
+
+        pub fn total_fuel(modules: impl Iterator<Item = MassUnit>) -> u64 {
+            modules.map(fuel_from_mass).sum()
+        }
+
+        #[cfg(test)]
+        mod test {
+            use crate::challenges::day1::fuel_from_mass;
+
+            #[test]
+            fn advent_examples() {
+                assert_eq!(fuel_from_mass(12), 2);
+                assert_eq!(fuel_from_mass(14), 2);
+                assert_eq!(fuel_from_mass(1969), 654);
+                assert_eq!(fuel_from_mass(100756), 33583);
+            }
+        }
+    }
 }
 
 fn run(args: &ArgMatches) -> Result<()> {
@@ -48,7 +107,6 @@ fn main() -> Result<()> {
 }
 
 fn setup_logger(level: u64) -> slog::Logger {
-
     let log_level = match level {
         0 => slog::Level::Warning,
         1 => slog::Level::Info,
