@@ -51,6 +51,13 @@ mod subcommand {
         Ok(())
     }
 
+    pub fn day1p2(args: &ArgMatches) -> Result<()> {
+        let modules: Vec<u64> = crate::util::read_lines_of(args.value_of("input").unwrap())?;
+        let fuel = crate::challenges::day1::total_fuel_recursive(modules.into_iter());
+        println!("{}", fuel);
+        Ok(())
+    }
+
     pub fn test(args: &ArgMatches) -> Result<()> {
         Ok(())
     }
@@ -61,23 +68,49 @@ pub mod challenges {
         type MassUnit = u64;
 
         fn fuel_from_mass(mass: MassUnit) -> u64 {
+            if mass < 7 {
+                return 0;
+            }
             (mass - 6) / 3
+        }
+
+        fn recursive_fuel_from_mass(mass: MassUnit) -> u64 {
+            let mut total = 0u64;
+            let mut new_mass = mass;
+            loop {
+                new_mass = fuel_from_mass(new_mass);
+                total += new_mass;
+                if new_mass == 0 {
+                    return total;
+                }
+            }
         }
 
         pub fn total_fuel(modules: impl Iterator<Item = MassUnit>) -> u64 {
             modules.map(fuel_from_mass).sum()
         }
 
+        pub fn total_fuel_recursive(modules: impl Iterator<Item = MassUnit>) -> u64 {
+            modules.map(recursive_fuel_from_mass).sum()
+        }
+
         #[cfg(test)]
         mod test {
-            use crate::challenges::day1::fuel_from_mass;
+            use crate::challenges::day1::{fuel_from_mass, recursive_fuel_from_mass};
 
             #[test]
-            fn advent_examples() {
+            fn fuel_from_mass_single() {
                 assert_eq!(fuel_from_mass(12), 2);
                 assert_eq!(fuel_from_mass(14), 2);
                 assert_eq!(fuel_from_mass(1969), 654);
                 assert_eq!(fuel_from_mass(100756), 33583);
+            }
+            #[test]
+            fn fuel_from_mass_recursive() {
+                assert_eq!(recursive_fuel_from_mass(12), 2);
+                assert_eq!(recursive_fuel_from_mass(14), 2);
+                assert_eq!(recursive_fuel_from_mass(1969), 966);
+                assert_eq!(recursive_fuel_from_mass(100756), 50346);
             }
         }
     }
@@ -90,6 +123,7 @@ fn run(args: &ArgMatches) -> Result<()> {
 
     match args.subcommand() {
         ("day1", Some(sub_m)) => subcommand::day1(sub_m)?,
+        ("day1-part2", Some(sub_m)) => subcommand::day1p2(sub_m)?,
         ("test", Some(sub_m)) => subcommand::test(sub_m)?,
         ("", _) => Err(anyhow!("Please provide a command:\n{}", args.usage()))?,
         subc => Err(anyhow!("Unknown command: {:?}\n{}", subc, args.usage()))?,
@@ -135,11 +169,12 @@ fn get_args() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name("day1")
                 .about("Calculate fuel required")
-                .arg(
-                    Arg::with_name("input")
-                        .required(true)
-                        .help("print debug information verbosely"),
-                ),
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day1-part2")
+                .about("Calculate fuel required: fuel requires more fuel")
+                .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))
         .get_matches()
