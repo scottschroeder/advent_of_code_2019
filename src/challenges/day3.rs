@@ -1,3 +1,4 @@
+use crate::util::parse_str;
 use anyhow::{anyhow, Context, Result};
 use std::str::FromStr;
 
@@ -220,7 +221,7 @@ fn parse_wirerun(input: &str) -> Result<WireRun> {
         "R" => WireDirection::Right,
         unk => panic!("direction '{}' is unknown", unk),
     };
-    let step = u64::from_str(n).map_err(|e| anyhow!("{}", e))?;
+    let step = parse_str::<u64>(n)?;
 
     let segment = WireRun { direction, step };
     //trace!(slog_scope::logger(), "{} -> {:?}", input, segment);

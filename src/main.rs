@@ -20,6 +20,14 @@ pub mod util {
     use std::str::FromStr;
     use std::{fs, io, io::BufRead, path};
 
+    pub fn parse_str<T>(s: &str) -> Result<T>
+    where
+        T: FromStr,
+        <T as FromStr>::Err: Display,
+    {
+        T::from_str(s).map_err(|e| anyhow!("{}", e))
+    }
+
     pub fn read_to_string<P: AsRef<path::Path>>(path: P) -> Result<String> {
         slog_scope::trace!("Reading content of file: {}", path.as_ref().display());
         let mut f = fs::File::open(&path)
@@ -32,32 +40,32 @@ pub mod util {
     }
 
     pub fn parse_int_lines(input: &str) -> Result<Vec<u64>> {
-        input
-            .lines()
-            .map(|l| u64::from_str(&l).map_err(|e| anyhow!("{}", e)))
-            .collect()
+        input.lines().map(|l| parse_str::<u64>(l)).collect()
     }
 
     pub fn parse_intcode(input: &str) -> Result<Vec<u64>> {
         input
             .lines()
             .flat_map(|l| l.split(","))
-            .map(|ns| u64::from_str(ns).map_err(|e| anyhow!("{}", e)))
+            .map(|ns| parse_str::<u64>(ns))
             .collect()
     }
 }
 
 pub mod intcode;
+
 pub mod challenges {
     pub mod day1;
     pub mod day2;
     pub mod day3;
+    pub mod day4;
 
     #[cfg(test)]
     mod test {
         pub const DAY1_INPUT: &str = include_str!("../input/day1");
         pub const DAY2_INPUT: &str = include_str!("../input/day2");
         pub const DAY3_INPUT: &str = include_str!("../input/day3");
+        pub const DAY4_INPUT: &str = include_str!("../input/day4");
     }
 }
 
@@ -90,6 +98,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day3-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day3::day3_part2(&input)?);
+        },
+        ("day4", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day4::day4_part1(&input)?);
+        },
+        ("day4-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day4::day4_part2(&input)?);
         },
         ("", _) => Err(anyhow!("Please provide a command:\n{}", args.usage()))?,
         subc => Err(anyhow!("Unknown command: {:?}\n{}", subc, args.usage()))?,
@@ -163,6 +179,16 @@ fn get_args() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name("day3-part2")
                 .about("find closest wire crossing by signal distance")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day4")
+                .about("how many valid passwords")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day4-part2")
+                .about("how many valid passwords part2")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))
