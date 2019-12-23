@@ -51,11 +51,13 @@ pub mod intcode;
 pub mod challenges {
     pub mod day1;
     pub mod day2;
+    pub mod day3;
 
     #[cfg(test)]
     mod test {
         pub const DAY1_INPUT: &str = include_str!("../input/day1");
         pub const DAY2_INPUT: &str = include_str!("../input/day2");
+        pub const DAY3_INPUT: &str = include_str!("../input/day3");
     }
 }
 
@@ -80,6 +82,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day2-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day2::day2_part2(&input)?);
+        },
+        ("day3", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day3::day3_part1(&input)?);
+        },
+        ("day3-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day3::day3_part2(&input)?);
         },
         ("", _) => Err(anyhow!("Please provide a command:\n{}", args.usage()))?,
         subc => Err(anyhow!("Unknown command: {:?}\n{}", subc, args.usage()))?,
@@ -106,7 +116,10 @@ fn setup_logger(level: u64) -> slog::Logger {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
     let drain = drain.filter_level(log_level).fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
+    let drain = slog_async::Async::new(drain)
+        .chan_size(1 << 10)
+        .build()
+        .fuse();
     slog::Logger::root(Arc::new(drain), o!("version" => "0.5"))
 }
 
@@ -140,6 +153,16 @@ fn get_args() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name("day2-part2")
                 .about("solve inputs for gravity assist")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day3")
+                .about("find closest wire crossing")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day3-part2")
+                .about("find closest wire crossing by signal distance")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))
