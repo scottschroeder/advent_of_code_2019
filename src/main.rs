@@ -43,11 +43,11 @@ pub mod util {
         input.lines().map(|l| parse_str::<u64>(l)).collect()
     }
 
-    pub fn parse_intcode(input: &str) -> Result<Vec<u64>> {
+    pub fn parse_intcode(input: &str) -> Result<Vec<i64>> {
         input
             .lines()
             .flat_map(|l| l.split(","))
-            .map(|ns| parse_str::<u64>(ns))
+            .map(|ns| parse_str::<i64>(ns))
             .collect()
     }
 }
@@ -129,14 +129,16 @@ fn setup_logger(level: u64) -> slog::Logger {
         2 => slog::Level::Debug,
         _ => slog::Level::Trace,
     };
+
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
     let drain = drain.filter_level(log_level).fuse();
-    let drain = slog_async::Async::new(drain)
-        .chan_size(1 << 10)
-        .build()
-        .fuse();
-    slog::Logger::root(Arc::new(drain), o!("version" => "0.5"))
+    let drain = std::sync::Mutex::new(drain).fuse();
+    //    let drain = slog_async::Async::new(drain)
+    //        .chan_size(1 << 10)
+    //        .build()
+    //        .fuse();
+    slog::Logger::root(Arc::new(drain), o!())
 }
 
 fn get_args() -> clap::ArgMatches<'static> {
