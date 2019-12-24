@@ -113,6 +113,10 @@ fn run(args: &ArgMatches) -> Result<()> {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day5::day5_part1(&input)?);
         },
+        ("day5-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day5::day5_part2(&input)?);
+        },
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
     }
@@ -201,7 +205,12 @@ fn get_args() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name("day5")
-                .about("TEST diagnostic")
+                .about("TEST diagnostic - AC")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day5-part2")
+                .about("TEST diagnostic - thermal regulator")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))

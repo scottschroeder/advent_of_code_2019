@@ -1,5 +1,5 @@
 use super::Int;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow as ah, Result};
 
 const MAX_ARITY: usize = 3;
 
@@ -9,6 +9,10 @@ pub enum Instruction {
     Mul,
     Input,
     Output,
+    JumpTrue,
+    JumpFalse,
+    LessThan,
+    EqualTo,
     Halt,
 }
 
@@ -20,6 +24,10 @@ impl Instruction {
             Instruction::Input => 1,
             Instruction::Output => 1,
             Instruction::Halt => 0,
+            Instruction::JumpTrue => 2,
+            Instruction::JumpFalse => 2,
+            Instruction::LessThan => 3,
+            Instruction::EqualTo => 3,
         }
     }
 
@@ -29,8 +37,12 @@ impl Instruction {
             2 => Instruction::Mul,
             3 => Instruction::Input,
             4 => Instruction::Output,
+            5 => Instruction::JumpTrue,
+            6 => Instruction::JumpFalse,
+            7 => Instruction::LessThan,
+            8 => Instruction::EqualTo,
             99 => Instruction::Halt,
-            n => return Err(anyhow!("unknown opcode {:02}", n)),
+            n => return Err(ah!("unknown opcode {:02}", n)),
         })
     }
 }
@@ -51,7 +63,7 @@ impl ParameterMode {
         Ok(match m {
             0 => ParameterMode::Position,
             1 => ParameterMode::Immediate,
-            n => return Err(anyhow!("unknown parameter mode: {}", n)),
+            n => return Err(ah!("unknown parameter mode: {}", n)),
         })
     }
 }

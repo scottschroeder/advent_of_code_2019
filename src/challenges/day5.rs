@@ -9,7 +9,9 @@ pub fn day5_part1(input: &str) -> Result<String> {
 }
 
 pub fn day5_part2(input: &str) -> Result<String> {
-    Ok(format!(""))
+    let intcode = parse_intcode(input)?;
+    let code = test_diagnostic(intcode, 5)?;
+    Ok(format!("{}", code))
 }
 
 pub fn test_diagnostic(intcode: Vec<i64>, system_code: i64) -> Result<i64> {
@@ -32,6 +34,6 @@ mod test {
 
     #[test]
     fn day5part2() {
-        assert_eq!(day5_part2(DAY5_INPUT).unwrap().as_str(), "")
+        assert_eq!(day5_part2(DAY5_INPUT).unwrap().as_str(), "513116")
     }
 }

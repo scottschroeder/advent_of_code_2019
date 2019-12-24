@@ -103,6 +103,7 @@ impl<I: Input, O: Output> IntCode<I, O> {
 
     pub fn run_one(&mut self) -> Result<()> {
         let (instr, modes) = parse_instruction(self.inner[self.pc])?;
+        let mut update_pc = true;
         match instr {
             Instruction::Add => {
                 let lhs = *self.get_arg(0, modes);
@@ -128,8 +129,36 @@ impl<I: Input, O: Output> IntCode<I, O> {
             Instruction::Halt => {
                 self.halt = true;
             },
+            Instruction::JumpTrue => {
+                let cond = *self.get_arg(0, modes);
+                if cond != 0 {
+                    self.pc = *self.get_arg(1, modes) as usize;
+                    update_pc = false;
+                }
+            },
+            Instruction::JumpFalse => {
+                let cond = *self.get_arg(0, modes);
+                if cond == 0 {
+                    self.pc = *self.get_arg(1, modes) as usize;
+                    update_pc = false;
+                }
+            },
+            Instruction::LessThan => {
+                let lhs = *self.get_arg(0, modes);
+                let rhs = *self.get_arg(1, modes);
+                let dst = self.get_arg(2, modes);
+                *dst = if lhs < rhs { 1 } else { 0 };
+            },
+            Instruction::EqualTo => {
+                let lhs = *self.get_arg(0, modes);
+                let rhs = *self.get_arg(1, modes);
+                let dst = self.get_arg(2, modes);
+                *dst = if lhs == rhs { 1 } else { 0 };
+            },
         }
-        self.pc += 1 + instr.arity();
+        if update_pc {
+            self.pc += 1 + instr.arity();
+        }
         Ok(())
     }
 
@@ -149,6 +178,13 @@ impl<I: Input, O: Output> IntCode<I, O> {
 mod test {
     use super::{Int, IntCode};
     use crate::intcode::incode_io::{NullIO, VecIO};
+    use crate::intcode::run_intcode;
+    use anyhow::Result;
+
+    fn single_input_single_output(code: Vec<Int>, input: Int) -> Result<Int> {
+        let (mem, output) = run_intcode(code, vec![input])?;
+        Ok(output[0])
+    }
 
     fn assert_intcode(before: Vec<Int>, after: Vec<Int>) {
         let mut ic = IntCode::new(before, NullIO, NullIO);
@@ -205,5 +241,100 @@ mod test {
     #[test]
     fn modes_and_negatives() {
         assert_intcode(vec![1101, 100, -1, 4, 0], vec![1101, 100, -1, 4, 99])
+    }
+
+    #[test]
+    fn is_equal_8_position_mode() {
+        let code = vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 0);
+    }
+
+    #[test]
+    fn is_lt_8_position_mode() {
+        let code = vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 0);
+    }
+
+    #[test]
+    fn is_equal_8_immediate_mode() {
+        let code = vec![3, 3, 1108, -1, 8, 3, 4, 3, 99];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 0);
+    }
+
+    #[test]
+    fn is_lt_8_immediate_mode() {
+        let code = vec![3, 3, 1107, -1, 8, 3, 4, 3, 99];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 0);
+    }
+
+    #[test]
+    fn jump_test_postition() {
+        let code = vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 1);
+    }
+
+    #[test]
+    fn jump_test_immediate() {
+        let code = vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 0);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 1);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 1);
+    }
+
+    #[test]
+    fn less_equal_greater_to_8() {
+        let code = vec![
+            3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36, 98, 0,
+            0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
+            20, 1105, 1, 46, 98, 99,
+        ];
+        assert_eq!(single_input_single_output(code.clone(), -7).unwrap(), 999);
+        assert_eq!(single_input_single_output(code.clone(), -8).unwrap(), 999);
+        assert_eq!(single_input_single_output(code.clone(), -9).unwrap(), 999);
+        assert_eq!(single_input_single_output(code.clone(), 0).unwrap(), 999);
+        assert_eq!(single_input_single_output(code.clone(), 7).unwrap(), 999);
+        assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1000);
+        assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 1001);
+        assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 1001);
     }
 }
