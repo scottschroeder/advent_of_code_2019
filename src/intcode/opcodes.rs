@@ -25,10 +25,10 @@ impl Instruction {
 
     pub fn try_from_int(instr: Int) -> Result<Instruction> {
         Ok(match instr {
-            01 => Instruction::Add,
-            02 => Instruction::Mul,
-            03 => Instruction::Input,
-            04 => Instruction::Output,
+            1 => Instruction::Add,
+            2 => Instruction::Mul,
+            3 => Instruction::Input,
+            4 => Instruction::Output,
             99 => Instruction::Halt,
             n => return Err(anyhow!("unknown opcode {:02}", n)),
         })

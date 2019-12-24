@@ -1,6 +1,6 @@
-use crate::intcode::incode_io::{Input, NullIO, Output, VecIO};
+use crate::intcode::incode_io::{Input, Output, VecIO};
 use crate::intcode::opcodes::{parse_instruction, Instruction, ParameterMode, ParameterModes};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 type Int = i64;
 
@@ -8,7 +8,7 @@ mod opcodes;
 
 mod incode_io {
     use super::Int;
-    use anyhow::{anyhow, Result};
+    use anyhow::{anyhow as ah, Result};
 
     pub trait Input {
         fn input(&mut self) -> Result<Int>;
@@ -50,7 +50,7 @@ mod incode_io {
 
     impl Input for VecIO {
         fn input(&mut self) -> Result<Int> {
-            self.inner.pop().ok_or_else(|| anyhow!("no more input"))
+            self.inner.pop().ok_or_else(|| ah!("no more input"))
         }
     }
 
@@ -101,34 +101,28 @@ impl<I: Input, O: Output> IntCode<I, O> {
         }
     }
 
-    #[inline]
-    fn get_pc_offset(&mut self, offset: usize) -> &mut Int {
-        let pos = self.inner[self.pc + offset] as usize;
-        &mut self.inner[pos]
-    }
-
     pub fn run_one(&mut self) -> Result<()> {
         let (instr, modes) = parse_instruction(self.inner[self.pc])?;
         match instr {
             Instruction::Add => {
-                let lhs = self.get_arg(0, modes).clone();
-                let rhs = self.get_arg(1, modes).clone();
+                let lhs = *self.get_arg(0, modes);
+                let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = lhs + rhs;
             },
             Instruction::Mul => {
-                let lhs = self.get_arg(0, modes).clone();
-                let rhs = self.get_arg(1, modes).clone();
+                let lhs = *self.get_arg(0, modes);
+                let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = lhs * rhs;
             },
             Instruction::Input => {
-                let input = self.input.input()?.clone();
+                let input = self.input.input()?;
                 let dst = self.get_arg(0, modes);
                 *dst = input;
             },
             Instruction::Output => {
-                let src = self.get_arg(0, modes).clone();
+                let src = *self.get_arg(0, modes);
                 self.output.output(src)?;
             },
             Instruction::Halt => {

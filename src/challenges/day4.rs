@@ -1,22 +1,22 @@
 use crate::util::parse_str;
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 
 pub fn day4_part1(input: &str) -> Result<String> {
     let (low, high) = parse_range(input)?;
-    let count = (low..high + 1).filter(|pw| is_valid_password(*pw)).count();
+    let count = (low..=high).filter(|pw| is_valid_password(*pw)).count();
     Ok(format!("{}", count))
 }
 
 pub fn day4_part2(input: &str) -> Result<String> {
     let (low, high) = parse_range(input)?;
-    let count = (low..high + 1)
+    let count = (low..=high)
         .filter(|pw| is_valid_password_part2(*pw))
         .count();
     Ok(format!("{}", count))
 }
 
 fn parse_range(input: &str) -> Result<(u64, u64)> {
-    let mut chunks = input.trim().split("-");
+    let mut chunks = input.trim().split('-');
     let low = chunks.next().unwrap();
     let high = chunks.next().unwrap();
     Ok((parse_str(low)?, parse_str(high)?))
@@ -89,7 +89,7 @@ mod test {
     #[test]
     fn parse_ranges() {
         assert_eq!(parse_range("23-57").unwrap(), (23, 57));
-        assert_eq!(parse_range("265275-781584").unwrap(), (265275, 781584));
+        assert_eq!(parse_range("265275-781584").unwrap(), (265_275, 781_584));
     }
 
     #[test]
@@ -101,10 +101,10 @@ mod test {
 
     #[test]
     fn valid_pw_pt2() {
-        assert_eq!(is_valid_password_part2(112233), true);
-        assert_eq!(is_valid_password_part2(123444), false);
-        assert_eq!(is_valid_password_part2(111122), true);
-        assert_eq!(is_valid_password_part2(123455), true);
+        assert_eq!(is_valid_password_part2(112_233), true);
+        assert_eq!(is_valid_password_part2(123_444), false);
+        assert_eq!(is_valid_password_part2(111_122), true);
+        assert_eq!(is_valid_password_part2(123_455), true);
     }
 
     #[test]

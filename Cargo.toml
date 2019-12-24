@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
-anyhow = "1.0.25"
+anyhow = "1.0.26"
 
 # logging
 slog = {version = "2.5.2", features=["max_level_trace"] }

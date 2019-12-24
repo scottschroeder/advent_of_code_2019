@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow as ah, Result};
 
 #[macro_use]
 extern crate clap;
@@ -14,18 +14,18 @@ use slog::Drain;
 use std::sync::Arc;
 
 pub mod util {
-    use anyhow::{anyhow, Context, Result};
+    use anyhow::{anyhow as ah, Context, Result};
     use std::fmt::Display;
     use std::io::Read;
     use std::str::FromStr;
-    use std::{fs, io, io::BufRead, path};
+    use std::{fs, path};
 
     pub fn parse_str<T>(s: &str) -> Result<T>
     where
         T: FromStr,
         <T as FromStr>::Err: Display,
     {
-        T::from_str(s).map_err(|e| anyhow!("{}", e))
+        T::from_str(s).map_err(|e| ah!("{}", e))
     }
 
     pub fn read_to_string<P: AsRef<path::Path>>(path: P) -> Result<String> {
@@ -46,7 +46,7 @@ pub mod util {
     pub fn parse_intcode(input: &str) -> Result<Vec<i64>> {
         input
             .lines()
-            .flat_map(|l| l.split(","))
+            .flat_map(|l| l.split(','))
             .map(|ns| parse_str::<i64>(ns))
             .collect()
     }
@@ -113,8 +113,8 @@ fn run(args: &ArgMatches) -> Result<()> {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day5::day5_part1(&input)?);
         },
-        ("", _) => Err(anyhow!("Please provide a command:\n{}", args.usage()))?,
-        subc => Err(anyhow!("Unknown command: {:?}\n{}", subc, args.usage()))?,
+        ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
+        subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
     }
     Ok(())
 }

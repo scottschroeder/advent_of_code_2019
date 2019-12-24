@@ -1,6 +1,5 @@
 use crate::util::parse_str;
-use anyhow::{anyhow, Context, Result};
-use std::str::FromStr;
+use anyhow::Result;
 
 #[derive(Debug, Clone, Copy)]
 enum WireDirection {
@@ -35,9 +34,7 @@ impl WirePoint {
     }
 
     fn sum(self) -> i64 {
-        let d = self.x.abs() + self.y.abs();
-        //trace!(slog_scope::logger(), "{:?} -> {}", self, d);
-        d
+        self.x.abs() + self.y.abs()
     }
 
     #[inline]
@@ -89,7 +86,7 @@ impl WireSegment {
     }
 
     fn intersection(self, other: WireSegment) -> WireIntersect {
-        let log = slog_scope::logger();
+        let _log = slog_scope::logger();
 
         match (self.axis(), other.axis()) {
             (WireAxis::Horizontal(x), WireAxis::Vertical(y))
@@ -202,7 +199,7 @@ fn parse_wires(input: &str) -> Result<Vec<Wire>> {
 fn parse_wire(input: &str) -> Result<Wire> {
     let mut start = WirePoint::default();
     let mut segments = Vec::new();
-    for wr in input.split(",").map(|s| parse_wirerun(s)) {
+    for wr in input.split(',').map(|s| parse_wirerun(s)) {
         let end = start.add_run(wr?);
         segments.push(WireSegment { start, end });
         start = end

@@ -1,6 +1,6 @@
 use crate::intcode::run_intcode;
 use crate::util::parse_intcode;
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 
 pub fn day5_part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -14,7 +14,7 @@ pub fn day5_part2(input: &str) -> Result<String> {
 
 pub fn test_diagnostic(intcode: Vec<i64>, system_code: i64) -> Result<i64> {
     let input = vec![system_code];
-    let (mem, output) = run_intcode(intcode, input)?;
+    let (_mem, output) = run_intcode(intcode, input)?;
     debug!(slog_scope::logger(), "output: {:?}", output);
     let diag = output[output.len() - 1];
     Ok(diag)

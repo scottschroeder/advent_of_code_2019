@@ -1,5 +1,5 @@
 use crate::util::parse_int_lines;
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 type MassUnit = u64;
 
 pub fn day1_part1(input: &str) -> Result<String> {
@@ -51,14 +51,14 @@ mod test {
         assert_eq!(fuel_from_mass(12), 2);
         assert_eq!(fuel_from_mass(14), 2);
         assert_eq!(fuel_from_mass(1969), 654);
-        assert_eq!(fuel_from_mass(100756), 33583);
+        assert_eq!(fuel_from_mass(100_756), 33583);
     }
     #[test]
     fn fuel_from_mass_recursive() {
         assert_eq!(recursive_fuel_from_mass(12), 2);
         assert_eq!(recursive_fuel_from_mass(14), 2);
         assert_eq!(recursive_fuel_from_mass(1969), 966);
-        assert_eq!(recursive_fuel_from_mass(100756), 50346);
+        assert_eq!(recursive_fuel_from_mass(100_756), 50346);
     }
 
     #[test]
