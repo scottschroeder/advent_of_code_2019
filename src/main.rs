@@ -53,6 +53,7 @@ pub mod util {
 }
 
 pub mod intcode;
+pub mod orbital_data;
 
 pub mod challenges {
     pub mod day1;
@@ -60,6 +61,7 @@ pub mod challenges {
     pub mod day3;
     pub mod day4;
     pub mod day5;
+    pub mod day6;
 
     #[cfg(test)]
     mod test {
@@ -68,6 +70,8 @@ pub mod challenges {
         pub const DAY3_INPUT: &str = include_str!("../input/day3");
         pub const DAY4_INPUT: &str = include_str!("../input/day4");
         pub const DAY5_INPUT: &str = include_str!("../input/day5");
+        pub const DAY6_INPUT: &str = include_str!("../input/day6");
+        pub const DAY6_EXAMPLE_INPUT: &str = include_str!("../input/day6_ex");
     }
 }
 
@@ -116,6 +120,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day5-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day5::day5_part2(&input)?);
+        },
+        ("day6", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day6::day6_part1(&input)?);
+        },
+        ("day6-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day6::day6_part2(&input)?);
         },
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
@@ -211,6 +223,16 @@ fn get_args() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name("day5-part2")
                 .about("TEST diagnostic - thermal regulator")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day6")
+                .about("Count orbits in data")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day6-part2")
+                .about("")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))
