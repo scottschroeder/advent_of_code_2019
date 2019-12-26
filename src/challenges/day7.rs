@@ -1,7 +1,19 @@
+use crate::challenges::day7::amplifier::AmplifierCircut;
+use crate::util::parse_intcode;
 use anyhow::{anyhow as ah, Result};
+use itertools::Itertools;
 
 pub fn day7_part1(input: &str) -> Result<String> {
-    Ok(format!("{}", 1))
+    let intcode = parse_intcode(input)?;
+    let m = (0..5)
+        .permutations(5)
+        .map(|phases| {
+            let c = AmplifierCircut::new(&phases);
+            c.run(&intcode, 0).unwrap()
+        })
+        .max()
+        .unwrap();
+    Ok(format!("{}", m))
 }
 
 pub fn day7_part2(input: &str) -> Result<String> {
@@ -93,7 +105,7 @@ mod test {
 
     #[test]
     fn day7part1() {
-        assert_eq!(day7_part1(DAY7_INPUT).unwrap().as_str(), "1")
+        assert_eq!(day7_part1(DAY7_INPUT).unwrap().as_str(), "11828")
     }
 
     #[test]
