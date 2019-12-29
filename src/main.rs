@@ -63,6 +63,7 @@ pub mod challenges {
     pub mod day5;
     pub mod day6;
     pub mod day7;
+    pub mod day8;
 
     #[cfg(test)]
     mod test {
@@ -74,6 +75,8 @@ pub mod challenges {
         pub const DAY6_INPUT: &str = include_str!("../input/day6");
         pub const DAY6_EXAMPLE_INPUT: &str = include_str!("../input/day6_ex");
         pub const DAY7_INPUT: &str = include_str!("../input/day7");
+        pub const DAY8_INPUT: &str = include_str!("../input/day8");
+        pub const DAY8_PART2_OUTPUT: &str = include_str!("../input/day8_part2_output");
     }
 }
 
@@ -138,6 +141,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day7-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day7::day7_part2(&input)?);
+        },
+        ("day8", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day8::day8_part1(&input)?);
+        },
+        ("day8-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day8::day8_part2(&input)?);
         },
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
@@ -252,6 +263,16 @@ fn get_args() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name("day7-part2")
+                .about("")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day8")
+                .about("Max amplifier settings")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day8-part2")
                 .about("")
                 .arg(Arg::with_name("input").required(true)),
         )
