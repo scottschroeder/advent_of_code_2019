@@ -159,7 +159,7 @@ mod space_image_format {
     }
 
     impl Image {
-        pub fn new(mut data: Vec<u8>, width: usize, height: usize) -> Image {
+        pub fn new(data: Vec<u8>, width: usize, height: usize) -> Image {
             let layer_size = width * height;
             let depth = (data.len() / layer_size);
 

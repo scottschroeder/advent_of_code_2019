@@ -13,6 +13,7 @@ pub enum Instruction {
     JumpFalse,
     LessThan,
     EqualTo,
+    SetBase,
     Halt,
 }
 
@@ -28,6 +29,7 @@ impl Instruction {
             Instruction::JumpFalse => 2,
             Instruction::LessThan => 3,
             Instruction::EqualTo => 3,
+            Instruction::SetBase => 1,
         }
     }
 
@@ -41,6 +43,7 @@ impl Instruction {
             6 => Instruction::JumpFalse,
             7 => Instruction::LessThan,
             8 => Instruction::EqualTo,
+            9 => Instruction::SetBase,
             99 => Instruction::Halt,
             n => return Err(ah!("unknown opcode {:02}", n)),
         })
@@ -56,6 +59,7 @@ pub struct ParameterModes {
 pub enum ParameterMode {
     Position,
     Immediate,
+    Relative,
 }
 
 impl ParameterMode {
@@ -63,6 +67,7 @@ impl ParameterMode {
         Ok(match m {
             0 => ParameterMode::Position,
             1 => ParameterMode::Immediate,
+            2 => ParameterMode::Relative,
             n => return Err(ah!("unknown parameter mode: {}", n)),
         })
     }

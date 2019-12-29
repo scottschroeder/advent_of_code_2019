@@ -1,4 +1,5 @@
 use crate::intcode::intcode_io::{Input, Output, VecIO};
+use crate::intcode::intcode_mem::Memory;
 use crate::intcode::opcodes::{parse_instruction, Instruction, ParameterMode, ParameterModes};
 use anyhow::Result;
 
@@ -16,10 +17,98 @@ pub fn run_intcode(intcode: Vec<Int>, input: Vec<Int>) -> Result<(Vec<Int>, Vec<
     Ok((mem, out.into_vec()))
 }
 
+mod intcode_mem {
+    use super::Int;
+    use std::ops::{Index, IndexMut};
+    #[derive(Debug, Clone)]
+    pub struct Memory {
+        inner: Vec<Int>,
+    }
+
+    impl Memory {
+        #[inline]
+        fn len(&self) -> usize {
+            self.inner.len()
+        }
+
+        pub fn into_inner(self) -> Vec<Int> {
+            self.inner
+        }
+    }
+
+    impl From<Vec<Int>> for Memory {
+        fn from(v: Vec<Int>) -> Self {
+            Memory { inner: v }
+        }
+    }
+
+    impl<T: AsRef<[Int]>> From<&T> for Memory {
+        fn from(v: &T) -> Self {
+            Memory {
+                inner: v.as_ref().to_vec(),
+            }
+        }
+    }
+
+    impl Index<usize> for Memory {
+        type Output = Int;
+        fn index(&self, index: usize) -> &Self::Output {
+            if index >= self.inner.len() {
+                &0
+            } else {
+                &self.inner[index]
+            }
+        }
+    }
+
+    impl IndexMut<usize> for Memory {
+        fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+            if index >= self.inner.len() {
+                self.inner.resize(index + 1, 0);
+            }
+            &mut self.inner[index]
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+        #[test]
+        fn read_without_extend() {
+            let mut m = Memory::from(&[]);
+            assert_eq!(m[0], 0);
+            assert_eq!(m[10], 0);
+            assert_eq!(m[100], 0);
+            assert_eq!(m[1000], 0);
+            assert_eq!(m[10000000], 0);
+            assert_eq!(m.len(), 0)
+        }
+
+        #[test]
+        fn read_mut() {
+            let mut m = Memory::from(&[]);
+            m[2] = 10;
+            assert_eq!(m[1], 0);
+            assert_eq!(m[2], 10);
+            assert_eq!(m[5], 0);
+            assert_eq!(m.len(), 3);
+            {
+                let dst = &mut m[5];
+                *dst = 50;
+            }
+            assert_eq!(m[1], 0);
+            assert_eq!(m[2], 10);
+            assert_eq!(m[5], 50);
+            assert_eq!(m.len(), 6);
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct IntCode<I, O> {
-    inner: Vec<Int>,
+    inner: Memory,
     pc: usize,
+    relative_base: Int,
     halt: bool,
     input: I,
     output: O,
@@ -28,8 +117,9 @@ pub struct IntCode<I, O> {
 impl<I: Input, O: Output> IntCode<I, O> {
     pub fn new(intcode: Vec<Int>, input: I, output: O) -> IntCode<I, O> {
         IntCode {
-            inner: intcode,
+            inner: Memory::from(intcode),
             pc: 0,
+            relative_base: 0,
             halt: false,
             input,
             output,
@@ -44,6 +134,10 @@ impl<I: Input, O: Output> IntCode<I, O> {
                 &mut self.inner[pos]
             },
             ParameterMode::Immediate => &mut self.inner[idx],
+            ParameterMode::Relative => {
+                let pos = self.relative_base + self.inner[idx];
+                &mut self.inner[pos as usize]
+            },
         }
     }
 
@@ -101,6 +195,11 @@ impl<I: Input, O: Output> IntCode<I, O> {
                 let dst = self.get_arg(2, modes);
                 *dst = if lhs == rhs { 1 } else { 0 };
             },
+            Instruction::SetBase => {
+                let offset = *self.get_arg(0, modes);
+                self.relative_base += offset;
+                debug_assert!(self.relative_base >= 0);
+            },
         }
         if update_pc {
             self.pc += 1 + instr.arity();
@@ -116,7 +215,7 @@ impl<I: Input, O: Output> IntCode<I, O> {
     }
 
     pub fn emit(self) -> (Vec<Int>, O) {
-        (self.inner, self.output)
+        (self.inner.into_inner(), self.output)
     }
 }
 
@@ -135,7 +234,7 @@ mod test {
     fn assert_intcode(before: Vec<Int>, after: Vec<Int>) {
         let mut ic = IntCode::new(before, NullIO, NullIO);
         ic.run_till_end().unwrap();
-        assert_eq!(ic.inner, after);
+        assert_eq!(ic.inner.into_inner(), after);
     }
 
     #[test]
@@ -282,5 +381,36 @@ mod test {
         assert_eq!(single_input_single_output(code.clone(), 8).unwrap(), 1000);
         assert_eq!(single_input_single_output(code.clone(), 9).unwrap(), 1001);
         assert_eq!(single_input_single_output(code.clone(), 13).unwrap(), 1001);
+    }
+
+    #[test]
+    fn simple_relative_base() {
+        let mut code = vec![109, 2000, 109, 19, 204, -34, 99];
+        code.extend(vec![0; 2000]);
+        code[1985] = 923;
+        assert_eq!(single_input_single_output(code, 0).unwrap(), 923);
+    }
+
+    #[test]
+    fn advent_complete_intcode_copy_self() {
+        let mut code = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
+        assert_eq!(output, code);
+    }
+
+    #[test]
+    fn advent_complete_intcode_16digits() {
+        let mut code = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+        let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
+        assert_eq!(output[0], 1219070632396864);
+    }
+    #[test]
+    fn advent_complete_intcode_magic_number() {
+        let magic = 1125899906842624;
+        let mut code = vec![104, magic, 99];
+        let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
+        assert_eq!(output[0], magic);
     }
 }

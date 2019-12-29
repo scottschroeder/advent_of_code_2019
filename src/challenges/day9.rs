@@ -1,6 +1,8 @@
+use crate::util::parse_intcode;
 use anyhow::Result;
 
 pub fn day9_part1(input: &str) -> Result<String> {
+    let intcode = parse_intcode(input)?;
     Ok(format!("{}", 0))
 }
 
