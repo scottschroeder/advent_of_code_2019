@@ -1,73 +1,19 @@
-use crate::intcode::incode_io::{Input, Output, VecIO};
+use crate::intcode::intcode_io::{Input, Output, VecIO};
 use crate::intcode::opcodes::{parse_instruction, Instruction, ParameterMode, ParameterModes};
 use anyhow::Result;
 
-type Int = i64;
+pub type Int = i64;
 
 mod opcodes;
 
-mod incode_io {
-    use super::Int;
-    use anyhow::{anyhow as ah, Result};
-
-    pub trait Input {
-        fn input(&mut self) -> Result<Int>;
-    }
-
-    pub trait Output {
-        fn output(&mut self, out: Int) -> Result<()>;
-    }
-
-    pub struct NullIO;
-
-    impl Input for NullIO {
-        fn input(&mut self) -> Result<Int> {
-            Ok(0)
-        }
-    }
-
-    impl Output for NullIO {
-        fn output(&mut self, out: Int) -> Result<()> {
-            trace!(slog_scope::logger(), "NullIO output => {}", out);
-            Ok(())
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Default)]
-    pub struct VecIO {
-        inner: Vec<Int>,
-    }
-
-    impl VecIO {
-        pub fn input(mut input: Vec<Int>) -> VecIO {
-            input.reverse();
-            VecIO { inner: input }
-        }
-        pub fn into_vec(self) -> Vec<Int> {
-            self.inner
-        }
-    }
-
-    impl Input for VecIO {
-        fn input(&mut self) -> Result<Int> {
-            self.inner.pop().ok_or_else(|| ah!("no more input"))
-        }
-    }
-
-    impl Output for VecIO {
-        fn output(&mut self, out: Int) -> Result<()> {
-            trace!(slog_scope::logger(), "VecIO output => {}", out);
-            self.inner.push(out);
-            Ok(())
-        }
-    }
-}
+pub(crate) mod intcode_io;
 
 pub fn run_intcode(intcode: Vec<Int>, input: Vec<Int>) -> Result<(Vec<Int>, Vec<Int>)> {
     let mut ic = IntCode::new(intcode, VecIO::input(input), VecIO::default());
     ic.run_till_end()?;
     let output = ic.output.clone();
-    Ok((ic.emit(), output.into_vec()))
+    let (mem, out) = ic.emit();
+    Ok((mem, out.into_vec()))
 }
 
 #[derive(Debug, Clone)]
@@ -169,15 +115,15 @@ impl<I: Input, O: Output> IntCode<I, O> {
         Ok(())
     }
 
-    pub fn emit(self) -> Vec<Int> {
-        self.inner
+    pub fn emit(self) -> (Vec<Int>, O) {
+        (self.inner, self.output)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::{Int, IntCode};
-    use crate::intcode::incode_io::{NullIO, VecIO};
+    use crate::intcode::intcode_io::{NullIO, VecIO};
     use crate::intcode::run_intcode;
     use anyhow::Result;
 

@@ -117,7 +117,6 @@ impl<'a> OrbitalMap<'a> {
         })
     }
 }
-
 pub fn parse_orbital_data(input: &str) -> Vec<(&str, &str)> {
     input
         .lines()
