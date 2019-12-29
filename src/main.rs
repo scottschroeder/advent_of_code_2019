@@ -64,6 +64,7 @@ pub mod challenges {
     pub mod day6;
     pub mod day7;
     pub mod day8;
+    pub mod day9;
 
     #[cfg(test)]
     mod test {
@@ -77,6 +78,7 @@ pub mod challenges {
         pub const DAY7_INPUT: &str = include_str!("../input/day7");
         pub const DAY8_INPUT: &str = include_str!("../input/day8");
         pub const DAY8_PART2_OUTPUT: &str = include_str!("../input/day8_part2_output");
+        pub const DAY9_INPUT: &str = include_str!("../input/day9");
     }
 }
 
@@ -149,6 +151,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day8-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day8::day8_part2(&input)?);
+        },
+        ("day9", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day9::day9_part1(&input)?);
+        },
+        ("day9-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day9::day9_part2(&input)?);
         },
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
@@ -263,16 +273,26 @@ fn get_args() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name("day7-part2")
-                .about("")
+                .about("Max amplifier settings with feedback")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(
             SubCommand::with_name("day8")
-                .about("Max amplifier settings")
+                .about("Space Image Format Checksum")
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(
             SubCommand::with_name("day8-part2")
+                .about("Space Image Format Printing")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day9")
+                .about("")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day9-part2")
                 .about("")
                 .arg(Arg::with_name("input").required(true)),
         )
