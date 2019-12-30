@@ -1,5 +1,5 @@
-use crate::util::parse_intcode;
 use crate::intcode::run_intcode;
+use crate::util::parse_intcode;
 use anyhow::Result;
 
 pub fn day9_part1(input: &str) -> Result<String> {

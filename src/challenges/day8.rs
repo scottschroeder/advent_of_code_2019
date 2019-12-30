@@ -20,8 +20,6 @@ pub fn day8_part1(input: &str) -> Result<String> {
 }
 
 pub fn day8_part2(input: &str) -> Result<String> {
-    let data = parse_digits("0222112222120000");
-    let img = Image::new(data, 2, 2);
     let data = parse_digits(input);
     let img = Image::new(data, 25, 6);
     let canvas = img.render();
