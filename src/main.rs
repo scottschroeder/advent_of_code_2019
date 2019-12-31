@@ -65,6 +65,7 @@ pub mod challenges {
     pub mod day7;
     pub mod day8;
     pub mod day9;
+    pub mod day10;
 
     #[cfg(test)]
     mod test {
@@ -79,6 +80,7 @@ pub mod challenges {
         pub const DAY8_INPUT: &str = include_str!("../input/day8");
         pub const DAY8_PART2_OUTPUT: &str = include_str!("../input/day8_part2_output");
         pub const DAY9_INPUT: &str = include_str!("../input/day9");
+        pub const DAY10_INPUT: &str = include_str!("../input/day10");
     }
 }
 
@@ -159,6 +161,14 @@ fn run(args: &ArgMatches) -> Result<()> {
         ("day9-part2", Some(sub_m)) => {
             let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
             println!("{}", crate::challenges::day9::day9_part2(&input)?);
+        },
+        ("day10", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day10::part1(&input)?);
+        },
+        ("day10-part2", Some(sub_m)) => {
+            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
+            println!("{}", crate::challenges::day10::part2(&input)?);
         },
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
@@ -293,6 +303,16 @@ fn get_args() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name("day9-part2")
+                .about("")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day10")
+                .about("")
+                .arg(Arg::with_name("input").required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("day10-part2")
                 .about("")
                 .arg(Arg::with_name("input").required(true)),
         )
