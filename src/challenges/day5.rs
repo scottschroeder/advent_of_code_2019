@@ -2,13 +2,13 @@ use crate::intcode::run_intcode;
 use crate::util::parse_intcode;
 use anyhow::Result;
 
-pub fn day5_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let code = test_diagnostic(intcode, 1)?;
     Ok(format!("{}", code))
 }
 
-pub fn day5_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let code = test_diagnostic(intcode, 5)?;
     Ok(format!("{}", code))
@@ -29,11 +29,11 @@ mod test {
 
     #[test]
     fn day5part1() {
-        assert_eq!(day5_part1(DAY5_INPUT).unwrap().as_str(), "5346030")
+        assert_eq!(part1(DAY5_INPUT).unwrap().as_str(), "5346030")
     }
 
     #[test]
     fn day5part2() {
-        assert_eq!(day5_part2(DAY5_INPUT).unwrap().as_str(), "513116")
+        assert_eq!(part2(DAY5_INPUT).unwrap().as_str(), "513116")
     }
 }

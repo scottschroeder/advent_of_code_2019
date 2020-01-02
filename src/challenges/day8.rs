@@ -1,7 +1,7 @@
 use self::space_image_format::Image;
 use anyhow::Result;
 
-pub fn day8_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let data = parse_digits(input);
     let img = Image::new(data, 25, 6);
 
@@ -19,7 +19,7 @@ pub fn day8_part1(input: &str) -> Result<String> {
     Ok(format!("{}", img_cs))
 }
 
-pub fn day8_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let data = parse_digits(input);
     let img = Image::new(data, 25, 6);
     let canvas = img.render();
@@ -276,13 +276,13 @@ mod test {
 
     #[test]
     fn day8part1() {
-        assert_eq!(day8_part1(DAY8_INPUT).unwrap().as_str(), "2684")
+        assert_eq!(part1(DAY8_INPUT).unwrap().as_str(), "2684")
     }
 
     #[test]
     fn day8part2() {
         assert_eq!(
-            day8_part2(DAY8_INPUT).unwrap().as_str().trim(),
+            part2(DAY8_INPUT).unwrap().as_str().trim(),
             DAY8_PART2_OUTPUT.trim()
         )
     }

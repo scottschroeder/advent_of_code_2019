@@ -57,7 +57,6 @@ pub mod orbital_data;
 
 pub mod challenges {
     pub mod day1;
-    pub mod day10;
     pub mod day2;
     pub mod day3;
     pub mod day4;
@@ -66,6 +65,53 @@ pub mod challenges {
     pub mod day7;
     pub mod day8;
     pub mod day9;
+
+    pub mod day10;
+    pub mod day11;
+
+    use anyhow::Result;
+    use clap::ArgMatches;
+
+    pub(crate) fn do_challenge(args: &ArgMatches) -> Result<()> {
+        let day = args.value_of("day").unwrap().parse::<u32>()?;
+        let part = args.value_of("part").unwrap().parse::<u32>()?;
+        let input = crate::util::read_to_string(args.value_of("input").unwrap())?;
+
+        debug!(slog_scope::logger(), "running day {}:{}", day, part);
+        let result = match (day, part) {
+            (1, 1) => day1::part1(&input)?,
+            (1, 2) => day1::part2(&input)?,
+            (2, 1) => day2::part1(&input)?,
+            (2, 2) => day2::part2(&input)?,
+            (3, 1) => day3::part1(&input)?,
+            (3, 2) => day3::part2(&input)?,
+            (4, 1) => day4::part1(&input)?,
+            (4, 2) => day4::part2(&input)?,
+            (5, 1) => day5::part1(&input)?,
+            (5, 2) => day5::part2(&input)?,
+            (6, 1) => day6::part1(&input)?,
+            (6, 2) => day6::part2(&input)?,
+            (7, 1) => day7::part1(&input)?,
+            (7, 2) => day7::part2(&input)?,
+            (8, 1) => day8::part1(&input)?,
+            (8, 2) => day8::part2(&input)?,
+            (9, 1) => day9::part1(&input)?,
+            (9, 2) => day9::part2(&input)?,
+            (10, 1) => day10::part1(&input)?,
+            (10, 2) => day10::part2(&input)?,
+            (11, 1) => day11::part1(&input)?,
+            (11, 2) => day11::part2(&input)?,
+            (d, p) => {
+                return Err(anyhow::anyhow!(
+                    "unimplemented challenge day {} part {}",
+                    d,
+                    p
+                ))
+            },
+        };
+        println!("{}", result);
+        Ok(())
+    }
 
     #[cfg(test)]
     mod test {
@@ -81,6 +127,7 @@ pub mod challenges {
         pub const DAY8_PART2_OUTPUT: &str = include_str!("../input/day8_part2_output");
         pub const DAY9_INPUT: &str = include_str!("../input/day9");
         pub const DAY10_INPUT: &str = include_str!("../input/day10");
+        pub const DAY11_INPUT: &str = include_str!("../input/day11");
     }
 }
 
@@ -90,86 +137,7 @@ fn run(args: &ArgMatches) -> Result<()> {
     trace!(log, "Args: {:?}", args);
 
     match args.subcommand() {
-        ("day1", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day1::day1_part1(&input)?);
-        },
-        ("day1-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day1::day1_part2(&input)?);
-        },
-        ("day2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day2::day2_part1(&input)?);
-        },
-        ("day2-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day2::day2_part2(&input)?);
-        },
-        ("day3", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day3::day3_part1(&input)?);
-        },
-        ("day3-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day3::day3_part2(&input)?);
-        },
-        ("day4", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day4::day4_part1(&input)?);
-        },
-        ("day4-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day4::day4_part2(&input)?);
-        },
-        ("day5", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day5::day5_part1(&input)?);
-        },
-        ("day5-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day5::day5_part2(&input)?);
-        },
-        ("day6", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day6::day6_part1(&input)?);
-        },
-        ("day6-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day6::day6_part2(&input)?);
-        },
-        ("day7", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day7::day7_part1(&input)?);
-        },
-        ("day7-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day7::day7_part2(&input)?);
-        },
-        ("day8", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day8::day8_part1(&input)?);
-        },
-        ("day8-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day8::day8_part2(&input)?);
-        },
-        ("day9", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day9::day9_part1(&input)?);
-        },
-        ("day9-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day9::day9_part2(&input)?);
-        },
-        ("day10", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day10::part1(&input)?);
-        },
-        ("day10-part2", Some(sub_m)) => {
-            let input = crate::util::read_to_string(sub_m.value_of("input").unwrap())?;
-            println!("{}", crate::challenges::day10::part2(&input)?);
-        },
+        ("challenge", Some(sub_m)) => crate::challenges::do_challenge(sub_m)?,
         ("", _) => return Err(ah!("Please provide a command:\n{}", args.usage())),
         subc => return Err(ah!("Unknown command: {:?}\n{}", subc, args.usage())),
     }
@@ -217,103 +185,10 @@ fn get_args() -> clap::ArgMatches<'static> {
                 .help("Sets the level of verbosity"),
         )
         .subcommand(
-            SubCommand::with_name("day1")
-                .about("Calculate fuel required")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day1-part2")
-                .about("Calculate fuel required: fuel requires more fuel")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day2")
-                .about("1202 Program Alarm")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day2-part2")
-                .about("solve inputs for gravity assist")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day3")
-                .about("find closest wire crossing")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day3-part2")
-                .about("find closest wire crossing by signal distance")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day4")
-                .about("how many valid passwords")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day4-part2")
-                .about("how many valid passwords part2")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day5")
-                .about("TEST diagnostic - AC")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day5-part2")
-                .about("TEST diagnostic - thermal regulator")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day6")
-                .about("Count orbits in data")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day6-part2")
-                .about("Shortest path orbital transfer")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day7")
-                .about("Max amplifier settings")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day7-part2")
-                .about("Max amplifier settings with feedback")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day8")
-                .about("Space Image Format Checksum")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day8-part2")
-                .about("Space Image Format Printing")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day9")
-                .about("")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day9-part2")
-                .about("")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day10")
-                .about("")
-                .arg(Arg::with_name("input").required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("day10-part2")
-                .about("")
+            SubCommand::with_name("challenge")
+                .about("run one of the daily challenges")
+                .arg(Arg::with_name("day").required(true))
+                .arg(Arg::with_name("part").required(true))
                 .arg(Arg::with_name("input").required(true)),
         )
         .subcommand(SubCommand::with_name("test"))

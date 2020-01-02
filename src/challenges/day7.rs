@@ -4,7 +4,7 @@ use crate::util::parse_intcode;
 use anyhow::{anyhow as ah, Result};
 use itertools::Itertools;
 
-pub fn day7_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let m = (0..5)
         .permutations(5)
@@ -17,7 +17,7 @@ pub fn day7_part1(input: &str) -> Result<String> {
     Ok(format!("{}", m))
 }
 
-pub fn day7_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let m = (5..10)
         .permutations(5)
@@ -181,11 +181,11 @@ mod test {
 
     #[test]
     fn day7part1() {
-        assert_eq!(day7_part1(DAY7_INPUT).unwrap().as_str(), "11828")
+        assert_eq!(part1(DAY7_INPUT).unwrap().as_str(), "11828")
     }
 
     #[test]
     fn day7part2() {
-        assert_eq!(day7_part2(DAY7_INPUT).unwrap().as_str(), "1714298")
+        assert_eq!(part2(DAY7_INPUT).unwrap().as_str(), "1714298")
     }
 }

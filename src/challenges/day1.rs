@@ -2,13 +2,13 @@ use crate::util::parse_int_lines;
 use anyhow::Result;
 type MassUnit = u64;
 
-pub fn day1_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let modules = parse_int_lines(input)?;
     let fuel = crate::challenges::day1::total_fuel(modules.into_iter());
     Ok(format!("{}", fuel))
 }
 
-pub fn day1_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let modules = parse_int_lines(input)?;
     let fuel = crate::challenges::day1::total_fuel_recursive(modules.into_iter());
     Ok(format!("{}", fuel))
@@ -63,10 +63,10 @@ mod test {
 
     #[test]
     fn day1part1() {
-        assert_eq!(day1_part1(DAY1_INPUT).unwrap().as_str(), "3402634")
+        assert_eq!(part1(DAY1_INPUT).unwrap().as_str(), "3402634")
     }
     #[test]
     fn day1part2() {
-        assert_eq!(day1_part2(DAY1_INPUT).unwrap().as_str(), "5101069")
+        assert_eq!(part2(DAY1_INPUT).unwrap().as_str(), "5101069")
     }
 }

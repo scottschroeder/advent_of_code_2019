@@ -2,13 +2,13 @@ use crate::intcode::run_intcode;
 use crate::util::parse_intcode;
 use anyhow::Result;
 
-pub fn day2_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let n = crate::challenges::day2::gravity_assit_calc(intcode, 12, 2)?;
     Ok(format!("{}", n))
 }
 
-pub fn day2_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let (a1, a2) =
         crate::challenges::day2::scan_args(&intcode, 19_690_720).expect("no valid inputs");
@@ -42,11 +42,11 @@ mod test {
 
     #[test]
     fn day2part1() {
-        assert_eq!(day2_part1(DAY2_INPUT).unwrap().as_str(), "3101878")
+        assert_eq!(part1(DAY2_INPUT).unwrap().as_str(), "3101878")
     }
 
     #[test]
     fn day2part2() {
-        assert_eq!(day2_part2(DAY2_INPUT).unwrap().as_str(), "8444")
+        assert_eq!(part2(DAY2_INPUT).unwrap().as_str(), "8444")
     }
 }

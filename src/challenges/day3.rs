@@ -180,13 +180,13 @@ fn min_wire_signal_distance(w1: &Wire, w2: &Wire) -> Option<u64> {
         .min()
 }
 
-pub fn day3_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let wires = parse_wires(input)?;
     let min_distance = min_wire_distance(&wires[0], &wires[1]).expect("no crossing found");
     Ok(format!("{:?}", min_distance))
 }
 
-pub fn day3_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let wires = parse_wires(input)?;
     let min_distance = min_wire_signal_distance(&wires[0], &wires[1]).expect("no crossing found");
     Ok(format!("{:?}", min_distance))
@@ -280,10 +280,10 @@ mod test {
 
     #[test]
     fn day3part1() {
-        assert_eq!(day3_part1(DAY3_INPUT).unwrap().as_str(), "221")
+        assert_eq!(part1(DAY3_INPUT).unwrap().as_str(), "221")
     }
     #[test]
     fn day3part2() {
-        assert_eq!(day3_part2(DAY3_INPUT).unwrap().as_str(), "18542")
+        assert_eq!(part2(DAY3_INPUT).unwrap().as_str(), "18542")
     }
 }

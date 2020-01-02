@@ -1,13 +1,13 @@
 use crate::util::parse_str;
 use anyhow::Result;
 
-pub fn day4_part1(input: &str) -> Result<String> {
+pub fn part1(input: &str) -> Result<String> {
     let (low, high) = parse_range(input)?;
     let count = (low..=high).filter(|pw| is_valid_password(*pw)).count();
     Ok(format!("{}", count))
 }
 
-pub fn day4_part2(input: &str) -> Result<String> {
+pub fn part2(input: &str) -> Result<String> {
     let (low, high) = parse_range(input)?;
     let count = (low..=high)
         .filter(|pw| is_valid_password_part2(*pw))
@@ -109,11 +109,11 @@ mod test {
 
     #[test]
     fn day4part1() {
-        assert_eq!(day4_part1(DAY4_INPUT).unwrap().as_str(), "960")
+        assert_eq!(part1(DAY4_INPUT).unwrap().as_str(), "960")
     }
 
     #[test]
     fn day4part2() {
-        assert_eq!(day4_part2(DAY4_INPUT).unwrap().as_str(), "626")
+        assert_eq!(part2(DAY4_INPUT).unwrap().as_str(), "626")
     }
 }
