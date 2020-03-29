@@ -128,6 +128,7 @@ pub mod challenges {
         pub const DAY9_INPUT: &str = include_str!("../input/day9");
         pub const DAY10_INPUT: &str = include_str!("../input/day10");
         pub const DAY11_INPUT: &str = include_str!("../input/day11");
+        pub const DAY11_PART2_OUTPUT: &str = include_str!("../input/day11_part2_output");
     }
 }
 

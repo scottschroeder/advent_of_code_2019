@@ -3,21 +3,133 @@ use crate::util::parse_intcode;
 use anyhow::{Result, Error};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::fmt;
 use crate::intcode::intcode_io::{Input, Output};
+use std::fmt::Formatter;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
-    let robot = run_robot(intcode)?;
+    let hull = Hull::black();
+    let robot = run_robot(intcode, hull)?;
     let robot = robot.robot.lock().unwrap();
     Ok(format!("{}", robot.hull.len()))
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    Ok(format!("{}", 0))
+    let intcode = parse_intcode(input)?;
+    let hull = Hull::white();
+    let robot = run_robot(intcode, hull)?;
+    let robot = robot.robot.lock().unwrap();
+    let img = hull_printer::Image::new(&robot.hull);
+    Ok(format!("{}", img))
 }
 
-fn run_robot(intcode: Vec<i64>) -> Result<RobotController> {
-    let (r_in, r_out) = robot_io();
+pub(crate) mod hull_printer {
+    use super::*;
+    use std::fmt;
+
+    pub struct Image {
+        frame: Frame,
+        data: Vec<Color>,
+    }
+
+    impl Image {
+         pub(crate) fn new(hull: &Hull) -> Image {
+            let frame = hull_dimm(hull);
+            let mut data = vec![Color::Black; frame.len()];
+            for ((x, y), c) in hull.inner.iter() {
+                data[frame.index(*x, *y)] = *c;
+            }
+            Image {
+                frame,
+                data,
+            }
+        }
+    }
+
+    impl fmt::Display for Image {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let w = self.frame.width() as usize;
+            for (idx, c) in self.data.iter().enumerate() {
+                if idx > 0 && idx % w == 0 {
+                    writeln!(f, "")?;
+                }
+                write!(f, "{}", c)?;
+            }
+            Ok(())
+        }
+    }
+
+
+    struct Frame {
+        min_x: i32,
+        max_x: i32,
+        min_y: i32,
+        max_y: i32,
+    }
+
+    impl Frame {
+        #[inline]
+        fn width(&self) -> i32 {
+            self.max_x + 1 - self.min_x
+        }
+        #[inline]
+        fn height(&self) -> i32 {
+            self.max_y + 1 - self.min_y
+        }
+        #[inline]
+        fn len(&self) -> usize {
+            (self.width() * self.height()) as usize
+        }
+        #[inline]
+        fn index(&self, x: i32, y: i32) -> usize {
+            let w = self.width();
+            let dx = x - self.min_x;
+            let dy = self.max_y - y;
+            let idx = (dx + w * dy) as usize;
+            idx
+        }
+    }
+
+    fn hull_dimm(hull: &Hull) -> Frame {
+        let mut min_x = None;
+        let mut max_x = None;
+        let mut min_y = None;
+        let mut max_y = None;
+        for (x, y) in hull.inner.keys() {
+            min_x = Some(if let Some(mx) = min_x {
+                std::cmp::min(mx, x)
+            } else {
+                x
+            });
+            max_x = Some(if let Some(mx) = max_x {
+                std::cmp::max(mx, x)
+            } else {
+                x
+            });
+            min_y = Some(if let Some(my) = min_y {
+                std::cmp::min(my, y)
+            } else {
+                y
+            });
+            max_y = Some(if let Some(my) = max_y {
+                std::cmp::max(my, y)
+            } else {
+                y
+            });
+        }
+        Frame {
+            min_x: *min_x.unwrap(),
+            max_x: *max_x.unwrap(),
+            min_y: *min_y.unwrap(),
+            max_y: *max_y.unwrap(),
+        }
+    }
+}
+
+
+fn run_robot(intcode: Vec<i64>, hull: Hull) -> Result<RobotController> {
+    let (r_in, r_out) = robot_io(hull);
     let mut ic = IntCode::new(intcode, r_in, r_out);
     ic.run_till_end()?;
     let (_, out) = ic.emit();
@@ -77,6 +189,15 @@ enum Color {
     Black,
 }
 
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Color::White => write!(f, "X"),
+            Color::Black => write!(f, " "),
+        }
+    }
+}
+
 impl From<Color> for i64 {
     fn from(c: Color) -> Self {
         match c {
@@ -113,11 +234,21 @@ impl RobotState {
 }
 
 #[derive(Debug)]
-struct Hull {
+pub(crate) struct Hull {
     inner: HashMap<(i32, i32), Color>
 }
 
 impl Hull {
+    fn black() -> Hull {
+        Hull {
+            inner: HashMap::default(),
+        }
+    }
+    fn white() -> Hull {
+        let mut h = Hull::black();
+        h.write(0, 0, Color::White);
+        h
+    }
     fn read(&self, x: i32, y: i32) -> Color {
         let coord = (x, y);
         *self.inner.get(&coord).unwrap_or(&Color::Black)
@@ -136,8 +267,9 @@ struct Robot {
     robot: RobotState,
     hull: Hull,
 }
-impl Default for Robot {
-    fn default() -> Self {
+
+impl Robot {
+    fn new(hull: Hull) -> Self {
         Robot {
             robot: RobotState {
                 x: 0,
@@ -145,13 +277,13 @@ impl Default for Robot {
                 heading: Heading::North,
 
             },
-            hull: Hull { inner: HashMap::default() },
+            hull,
         }
     }
 }
 
-fn robot_io() -> (RobotCamera, RobotController) {
-    let r = Arc::new(Mutex::new(Robot::default()));
+fn robot_io(hull: Hull) -> (RobotCamera, RobotController) {
+    let r = Arc::new(Mutex::new(Robot::new(hull)));
     let input = RobotCamera {
         robot: r.clone(),
     };
@@ -214,6 +346,6 @@ mod test {
 
     #[test]
     fn check_part2() {
-        assert_eq!(part2(DAY11_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY11_INPUT).unwrap().as_str(), DAY11_PART2_OUTPUT)
     }
 }
