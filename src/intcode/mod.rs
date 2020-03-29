@@ -12,7 +12,6 @@ pub(crate) mod intcode_io;
 pub fn run_intcode(intcode: Vec<Int>, input: Vec<Int>) -> Result<(Vec<Int>, Vec<Int>)> {
     let mut ic = IntCode::new(intcode, VecIO::input(input), VecIO::default());
     ic.run_till_end()?;
-    let output = ic.output.clone();
     let (mem, out) = ic.emit();
     Ok((mem, out.into_vec()))
 }
