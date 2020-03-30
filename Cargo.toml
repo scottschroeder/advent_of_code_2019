@@ -13,6 +13,8 @@ anyhow = "1.0.26"
 petgraph = "0.4.13"
 itertools = "0.8.2"
 num = "0.2"
+regex = "1"
+lazy_static = "1"
 
 # logging
 slog = {version = "2.5.2", features=["max_level_trace"] }

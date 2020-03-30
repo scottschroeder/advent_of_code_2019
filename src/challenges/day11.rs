@@ -346,6 +346,6 @@ mod test {
 
     #[test]
     fn check_part2() {
-        assert_eq!(part2(DAY11_INPUT).unwrap().as_str(), DAY11_PART2_OUTPUT)
+        assert_eq!(part2(DAY11_INPUT).unwrap().trim(), DAY11_PART2_OUTPUT.trim())
     }
 }
