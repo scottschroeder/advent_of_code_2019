@@ -6,6 +6,8 @@ pub(crate) mod d3;
 mod simulation {
     use super::d3::D3;
     use std::path::Iter;
+    use crate::challenges::day12::d3::D3Dimm;
+    use num::Integer;
 
     #[derive(Debug, Clone, Copy)]
     struct Moon {
@@ -16,6 +18,77 @@ mod simulation {
     impl Moon {
         fn energy(&self) -> i64 {
             self.pos.abs().total() * self.vel.abs().total()
+        }
+    }
+
+    pub(crate) struct SystemCycle {
+        initial: Vec<Moon>,
+        current: System,
+        iteration: usize,
+        x_period: Option<usize>,
+        y_period: Option<usize>,
+        z_period: Option<usize>,
+    }
+
+    impl SystemCycle {
+        pub(crate) fn new(system: System) -> SystemCycle {
+            SystemCycle {
+                initial: system.moons.clone(),
+                current: system,
+                iteration: 0,
+                x_period: None,
+                y_period: None,
+                z_period: None,
+            }
+        }
+        pub(crate) fn search(&mut self) {
+            while !self.is_complete() {
+                self.current.step(1);
+                self.iteration += 1;
+                if self.x_period.is_none() {
+                    self.check(D3Dimm::X);
+                }
+                if self.y_period.is_none() {
+                    self.check(D3Dimm::Y);
+                }
+                if self.z_period.is_none() {
+                    self.check(D3Dimm::Z);
+                }
+            }
+        }
+        fn is_complete(&self) -> bool {
+            self.x_period.is_some() && self.y_period.is_some() && self.z_period.is_some()
+        }
+        fn check(&mut self, d: D3Dimm) {
+            if self.compare(d) {
+                match d {
+                    D3Dimm::X => self.x_period = Some(self.iteration),
+                    D3Dimm::Y => self.y_period = Some(self.iteration),
+                    D3Dimm::Z => self.z_period = Some(self.iteration),
+                }
+            }
+        }
+        fn compare(&self, d: D3Dimm) -> bool {
+            self.initial
+                .iter()
+                .zip(self.current.moons.iter())
+                .all(|(a, b)| {
+                    a.pos.get(d) == b.pos.get(d) &&
+                        a.vel.get(d) == b.vel.get(d)
+                })
+        }
+        pub(crate) fn cycle(&self) -> Option<usize> {
+            self.x_period
+                .and_then(|x| {
+                    self.y_period
+                        .and_then(|y| {
+                            self.z_period
+                                .map(|z| (x, y, z))
+                        })
+                })
+                .map(|(x, y, z)| {
+                    x.lcm(&y).lcm(&z)
+                })
         }
     }
 
@@ -80,6 +153,26 @@ mod simulation {
             sys.step(100);
             assert_eq!(sys.energy(), 1940);
         }
+
+        #[test]
+        fn part2_ex1() {
+            let moons = parse(DAY12_EX1).unwrap();
+            let sys = System::new(moons);
+            let mut cycle_searcher = SystemCycle::new(sys);
+            cycle_searcher.search();
+            let cycle = cycle_searcher.cycle().unwrap();
+            assert_eq!(cycle, 2772);
+        }
+
+        #[test]
+        fn part2_ex2() {
+            let moons = parse(DAY12_EX2).unwrap();
+            let sys = System::new(moons);
+            let mut cycle_searcher = SystemCycle::new(sys);
+            cycle_searcher.search();
+            let cycle = cycle_searcher.cycle().unwrap();
+            assert_eq!(cycle, 4686774924);
+        }
     }
 }
 
@@ -91,7 +184,12 @@ pub fn part1(input: &str) -> Result<String> {
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    Ok(format!("{}", 0))
+    let moons = parse(input)?;
+    let sim = simulation::System::new(moons);
+    let mut cycle_searcher = simulation::SystemCycle::new(sim);
+    cycle_searcher.search();
+    let cycle = cycle_searcher.cycle().unwrap();
+    Ok(format!("{}", cycle))
 }
 
 
@@ -107,6 +205,6 @@ mod test {
 
     #[test]
     fn check_part2() {
-        assert_eq!(part2(DAY12_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY12_INPUT).unwrap().as_str(), "420788524631496")
     }
 }

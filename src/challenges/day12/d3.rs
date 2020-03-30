@@ -15,6 +15,13 @@ pub(crate) struct D3 {
     pub(crate) z: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum D3Dimm {
+    X,
+    Y,
+    Z,
+}
+
 #[inline]
 fn delta(a: i64, b: i64) -> i64 {
     match a.cmp(&b) {
@@ -90,6 +97,13 @@ impl D3 {
     }
     pub(crate) fn total(self) -> i64 {
         self.x + self.y + self.z
+    }
+    pub(crate) fn get(self, d: D3Dimm) -> i64 {
+        match d {
+            D3Dimm::X => self.x,
+            D3Dimm::Y => self.y,
+            D3Dimm::Z => self.z,
+        }
     }
 }
 
