@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::fmt;
 use crate::intcode::intcode_io::{Input, Output};
 use std::fmt::Formatter;
+use crate::display::{ImageNormal};
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -20,113 +21,11 @@ pub fn part2(input: &str) -> Result<String> {
     let hull = Hull::white();
     let robot = run_robot(intcode, hull)?;
     let robot = robot.robot.lock().unwrap();
-    let img = hull_printer::Image::new(&robot.hull);
+
+    let img = ImageNormal::create(&robot.hull.inner);
+
     Ok(format!("{}", img))
 }
-
-pub(crate) mod hull_printer {
-    use super::*;
-    use std::fmt;
-
-    pub struct Image {
-        frame: Frame,
-        data: Vec<Color>,
-    }
-
-    impl Image {
-         pub(crate) fn new(hull: &Hull) -> Image {
-            let frame = hull_dimm(hull);
-            let mut data = vec![Color::Black; frame.len()];
-            for ((x, y), c) in hull.inner.iter() {
-                data[frame.index(*x, *y)] = *c;
-            }
-            Image {
-                frame,
-                data,
-            }
-        }
-    }
-
-    impl fmt::Display for Image {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let w = self.frame.width() as usize;
-            for (idx, c) in self.data.iter().enumerate() {
-                if idx > 0 && idx % w == 0 {
-                    writeln!(f, "")?;
-                }
-                write!(f, "{}", c)?;
-            }
-            Ok(())
-        }
-    }
-
-
-    struct Frame {
-        min_x: i32,
-        max_x: i32,
-        min_y: i32,
-        max_y: i32,
-    }
-
-    impl Frame {
-        #[inline]
-        fn width(&self) -> i32 {
-            self.max_x + 1 - self.min_x
-        }
-        #[inline]
-        fn height(&self) -> i32 {
-            self.max_y + 1 - self.min_y
-        }
-        #[inline]
-        fn len(&self) -> usize {
-            (self.width() * self.height()) as usize
-        }
-        #[inline]
-        fn index(&self, x: i32, y: i32) -> usize {
-            let w = self.width();
-            let dx = x - self.min_x;
-            let dy = self.max_y - y;
-            let idx = (dx + w * dy) as usize;
-            idx
-        }
-    }
-
-    fn hull_dimm(hull: &Hull) -> Frame {
-        let mut min_x = None;
-        let mut max_x = None;
-        let mut min_y = None;
-        let mut max_y = None;
-        for (x, y) in hull.inner.keys() {
-            min_x = Some(if let Some(mx) = min_x {
-                std::cmp::min(mx, x)
-            } else {
-                x
-            });
-            max_x = Some(if let Some(mx) = max_x {
-                std::cmp::max(mx, x)
-            } else {
-                x
-            });
-            min_y = Some(if let Some(my) = min_y {
-                std::cmp::min(my, y)
-            } else {
-                y
-            });
-            max_y = Some(if let Some(my) = max_y {
-                std::cmp::max(my, y)
-            } else {
-                y
-            });
-        }
-        Frame {
-            min_x: *min_x.unwrap(),
-            max_x: *max_x.unwrap(),
-            min_y: *min_y.unwrap(),
-            max_y: *max_y.unwrap(),
-        }
-    }
-}
-
 
 fn run_robot(intcode: Vec<i64>, hull: Hull) -> Result<RobotController> {
     let (r_in, r_out) = robot_io(hull);

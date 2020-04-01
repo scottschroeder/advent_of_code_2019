@@ -54,6 +54,7 @@ pub mod util {
 
 pub mod intcode;
 pub mod orbital_data;
+pub mod display;
 
 pub mod challenges {
     pub mod day1;
@@ -69,6 +70,7 @@ pub mod challenges {
     pub mod day10;
     pub mod day11;
     pub mod day12;
+    pub mod day13;
 
     use anyhow::Result;
     use clap::ArgMatches;
@@ -104,6 +106,8 @@ pub mod challenges {
             (11, 2) => day11::part2(&input)?,
             (12, 1) => day12::part1(&input)?,
             (12, 2) => day12::part2(&input)?,
+            (13, 1) => day13::part1(&input)?,
+            (13, 2) => day13::part2(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
@@ -135,6 +139,7 @@ pub mod challenges {
         pub const DAY12_INPUT: &str = include_str!("../input/day12");
         pub const DAY12_EX1: &str = include_str!("../input/day12_ex1");
         pub const DAY12_EX2: &str = include_str!("../input/day12_ex2");
+        pub const DAY13_INPUT: &str = include_str!("../input/day13");
     }
 }
 
