@@ -6,13 +6,11 @@ use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
-use std::sync::{Arc, Mutex};
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let hull = Hull::black();
     let robot = run_robot(intcode, hull)?;
-    let robot = robot.robot.lock().unwrap();
     Ok(format!("{}", robot.hull.len()))
 }
 
@@ -20,19 +18,18 @@ pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let hull = Hull::white();
     let robot = run_robot(intcode, hull)?;
-    let robot = robot.robot.lock().unwrap();
 
     let img = ImageNormal::create(&robot.hull.inner);
 
     Ok(format!("{}", img))
 }
 
-fn run_robot(intcode: Vec<i64>, hull: Hull) -> Result<RobotController> {
-    let (r_in, r_out) = robot_io(hull);
-    let mut ic = IntCode::new(intcode, r_in, r_out);
+fn run_robot(intcode: Vec<i64>, hull: Hull) -> Result<Robot> {
+    let robot_io = RobotIO::new(hull);
+    let mut ic = IntCode::new_from_device(intcode, robot_io);
     ic.run_till_end()?;
-    let (_, FusedIO { output, .. }) = ic.emit();
-    Ok(output)
+    let (_, output) = ic.emit();
+    Ok(output.robot)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -180,38 +177,31 @@ impl Robot {
     }
 }
 
-fn robot_io(hull: Hull) -> (RobotCamera, RobotController) {
-    let r = Arc::new(Mutex::new(Robot::new(hull)));
-    let input = RobotCamera { robot: r.clone() };
-    let output = RobotController {
-        robot: r,
-        is_rotate: false,
-    };
-    (input, output)
+struct RobotIO {
+    robot: Robot,
+    is_rotate: bool,
 }
 
-#[derive(Debug)]
-struct RobotCamera {
-    robot: Arc<Mutex<Robot>>,
+impl RobotIO {
+    fn new(hull: Hull) -> RobotIO {
+        RobotIO {
+            robot: Robot::new(hull),
+            is_rotate: false,
+        }
+    }
 }
 
-impl Input for RobotCamera {
+impl Input for RobotIO {
     fn input(&mut self) -> Result<i64, Error> {
-        let r = self.robot.lock().unwrap();
-        let c = r.hull.read(r.robot.x, r.robot.y);
+        let r = &self.robot.robot;
+        let c = self.robot.hull.read(r.x, r.y);
         Ok(c.into())
     }
 }
 
-#[derive(Debug)]
-struct RobotController {
-    robot: Arc<Mutex<Robot>>,
-    is_rotate: bool,
-}
-
-impl Output for RobotController {
+impl Output for RobotIO {
     fn output(&mut self, out: i64) -> Result<(), Error> {
-        let mut robot = self.robot.lock().unwrap();
+        let robot = &mut self.robot;
         if self.is_rotate {
             let r = Rotation::from(out);
             robot.robot.rotate_advance(r);
