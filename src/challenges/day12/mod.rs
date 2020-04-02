@@ -1,13 +1,13 @@
-use anyhow::{Result, Error};
 use self::d3::parse;
+use anyhow::{Error, Result};
 
 pub(crate) mod d3;
 
 mod simulation {
     use super::d3::D3;
-    use std::path::Iter;
     use crate::challenges::day12::d3::D3Dimm;
     use num::Integer;
+    use std::path::Iter;
 
     #[derive(Debug, Clone, Copy)]
     struct Moon {
@@ -72,23 +72,12 @@ mod simulation {
             self.initial
                 .iter()
                 .zip(self.current.moons.iter())
-                .all(|(a, b)| {
-                    a.pos.get(d) == b.pos.get(d) &&
-                        a.vel.get(d) == b.vel.get(d)
-                })
+                .all(|(a, b)| a.pos.get(d) == b.pos.get(d) && a.vel.get(d) == b.vel.get(d))
         }
         pub(crate) fn cycle(&self) -> Option<usize> {
             self.x_period
-                .and_then(|x| {
-                    self.y_period
-                        .and_then(|y| {
-                            self.z_period
-                                .map(|z| (x, y, z))
-                        })
-                })
-                .map(|(x, y, z)| {
-                    x.lcm(&y).lcm(&z)
-                })
+                .and_then(|x| self.y_period.and_then(|y| self.z_period.map(|z| (x, y, z))))
+                .map(|(x, y, z)| x.lcm(&y).lcm(&z))
         }
     }
 
@@ -100,7 +89,13 @@ mod simulation {
     impl System {
         pub(crate) fn new(pos: Vec<D3>) -> Self {
             System {
-                moons: pos.into_iter().map(|d3| Moon { pos: d3, vel: D3::default() }).collect()
+                moons: pos
+                    .into_iter()
+                    .map(|d3| Moon {
+                        pos: d3,
+                        vel: D3::default(),
+                    })
+                    .collect(),
             }
         }
         pub(crate) fn energy(&self) -> i64 {
@@ -191,7 +186,6 @@ pub fn part2(input: &str) -> Result<String> {
     let cycle = cycle_searcher.cycle().unwrap();
     Ok(format!("{}", cycle))
 }
-
 
 #[cfg(test)]
 mod test {

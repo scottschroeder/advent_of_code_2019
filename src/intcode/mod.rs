@@ -1,4 +1,4 @@
-use crate::intcode::intcode_io::{Input, Output, VecIO};
+use crate::intcode::intcode_io::{FusedIO, Input, Output, VecIO};
 use crate::intcode::intcode_mem::Memory;
 use crate::intcode::opcodes::{parse_instruction, Instruction, ParameterMode, ParameterModes};
 use anyhow::Result;
@@ -12,8 +12,8 @@ pub(crate) mod intcode_io;
 pub fn run_intcode(intcode: Vec<Int>, input: Vec<Int>) -> Result<(Vec<Int>, Vec<Int>)> {
     let mut ic = IntCode::new(intcode, VecIO::input(input), VecIO::default());
     ic.run_till_end()?;
-    let (mem, out) = ic.emit();
-    Ok((mem, out.into_vec()))
+    let (mem, FusedIO { output, .. }) = ic.emit();
+    Ok((mem, output.into_vec()))
 }
 
 mod intcode_mem {
@@ -104,24 +104,34 @@ mod intcode_mem {
 }
 
 #[derive(Debug, Clone)]
-pub struct IntCode<I, O> {
+pub struct IntCode<IO> {
     inner: Memory,
     pc: usize,
     relative_base: Int,
     halt: bool,
-    input: I,
-    output: O,
+    io_device: IO,
 }
 
-impl<I: Input, O: Output> IntCode<I, O> {
-    pub fn new(intcode: Vec<Int>, input: I, output: O) -> IntCode<I, O> {
+impl<I: Input, O: Output> IntCode<FusedIO<I, O>> {
+    pub fn new(intcode: Vec<Int>, input: I, output: O) -> IntCode<FusedIO<I, O>> {
         IntCode {
             inner: Memory::from(intcode),
             pc: 0,
             relative_base: 0,
             halt: false,
-            input,
-            output,
+            io_device: FusedIO { input, output },
+        }
+    }
+}
+
+impl<IO: Input + Output> IntCode<IO> {
+    pub fn new_from_device(intcode: Vec<Int>, io_device: IO) -> IntCode<IO> {
+        IntCode {
+            inner: Memory::from(intcode),
+            pc: 0,
+            relative_base: 0,
+            halt: false,
+            io_device,
         }
     }
 
@@ -131,12 +141,12 @@ impl<I: Input, O: Output> IntCode<I, O> {
             ParameterMode::Position => {
                 let pos = self.inner[idx] as usize;
                 &mut self.inner[pos]
-            },
+            }
             ParameterMode::Immediate => &mut self.inner[idx],
             ParameterMode::Relative => {
                 let pos = self.relative_base + self.inner[idx];
                 &mut self.inner[pos as usize]
-            },
+            }
         }
     }
 
@@ -149,56 +159,56 @@ impl<I: Input, O: Output> IntCode<I, O> {
                 let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = lhs + rhs;
-            },
+            }
             Instruction::Mul => {
                 let lhs = *self.get_arg(0, modes);
                 let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = lhs * rhs;
-            },
+            }
             Instruction::Input => {
-                let input = self.input.input()?;
+                let input = self.io_device.input()?;
                 let dst = self.get_arg(0, modes);
                 *dst = input;
-            },
+            }
             Instruction::Output => {
                 let src = *self.get_arg(0, modes);
-                self.output.output(src)?;
-            },
+                self.io_device.output(src)?;
+            }
             Instruction::Halt => {
                 self.halt = true;
-            },
+            }
             Instruction::JumpTrue => {
                 let cond = *self.get_arg(0, modes);
                 if cond != 0 {
                     self.pc = *self.get_arg(1, modes) as usize;
                     update_pc = false;
                 }
-            },
+            }
             Instruction::JumpFalse => {
                 let cond = *self.get_arg(0, modes);
                 if cond == 0 {
                     self.pc = *self.get_arg(1, modes) as usize;
                     update_pc = false;
                 }
-            },
+            }
             Instruction::LessThan => {
                 let lhs = *self.get_arg(0, modes);
                 let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = if lhs < rhs { 1 } else { 0 };
-            },
+            }
             Instruction::EqualTo => {
                 let lhs = *self.get_arg(0, modes);
                 let rhs = *self.get_arg(1, modes);
                 let dst = self.get_arg(2, modes);
                 *dst = if lhs == rhs { 1 } else { 0 };
-            },
+            }
             Instruction::SetBase => {
                 let offset = *self.get_arg(0, modes);
                 self.relative_base += offset;
                 debug_assert!(self.relative_base >= 0);
-            },
+            }
         }
         if update_pc {
             self.pc += 1 + instr.arity();
@@ -213,8 +223,8 @@ impl<I: Input, O: Output> IntCode<I, O> {
         Ok(())
     }
 
-    pub fn emit(self) -> (Vec<Int>, O) {
-        (self.inner.into_inner(), self.output)
+    pub fn emit(self) -> (Vec<Int>, IO) {
+        (self.inner.into_inner(), self.io_device)
     }
 }
 
@@ -278,7 +288,7 @@ mod test {
         for i in 0..10 {
             let mut ic = IntCode::new(code.clone(), VecIO::input(vec![i]), VecIO::default());
             ic.run_till_end().unwrap();
-            assert_eq!(ic.output.into_vec()[0], i);
+            assert_eq!(ic.io_device.output.into_vec()[0], i);
         }
     }
 

@@ -5,9 +5,8 @@ Coordinates are integers (that may be negative)
 The size can be unknown
 */
 
-
-use std::iter::FromIterator;
 use std::fmt;
+use std::iter::FromIterator;
 
 #[derive(Default)]
 pub struct VON;
@@ -40,19 +39,13 @@ pub struct Point {
 
 impl From<(i32, i32)> for Point {
     fn from(p: (i32, i32)) -> Self {
-        Point {
-            x: p.0,
-            y: p.1,
-        }
+        Point { x: p.0, y: p.1 }
     }
 }
 
 impl From<&(i32, i32)> for Point {
     fn from(p: &(i32, i32)) -> Self {
-        Point {
-            x: p.0,
-            y: p.1,
-        }
+        Point { x: p.0, y: p.1 }
     }
 }
 
@@ -79,10 +72,11 @@ impl<T, V> Image<T, V> {
 
 impl<T: Clone, V: VerticalOrientation> Image<T, V> {
     pub fn create<'a, I, P>(iter: &'a I) -> Image<T, V>
-        where &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-              &'a P: Into<Point>,
-              T: 'a,
-              P: 'a
+    where
+        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+        &'a P: Into<Point>,
+        T: 'a,
+        P: 'a,
     {
         let mut frame = size_frame(iter);
         let mut img = Image {
@@ -95,10 +89,11 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
     }
 
     pub fn update<'a, I, P>(&mut self, iter: &'a I)
-        where &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-              &'a P: Into<Point>,
-              T: 'a,
-              P: 'a
+    where
+        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+        &'a P: Into<Point>,
+        T: 'a,
+        P: 'a,
     {
         self.data = vec![None; self.frame.len()];
 
@@ -108,7 +103,6 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
         }
     }
 }
-
 
 impl<T: fmt::Display, V> fmt::Display for Image<T, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -126,7 +120,6 @@ impl<T: fmt::Display, V> fmt::Display for Image<T, V> {
         Ok(())
     }
 }
-
 
 struct Frame {
     min_x: i32,
@@ -159,9 +152,10 @@ impl Frame {
 }
 
 fn size_frame<'a, I, T: 'a, P>(iter: &'a I) -> Frame
-    where &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-          P: 'a,
-          &'a P: Into<Point>,
+where
+    &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+    P: 'a,
+    &'a P: Into<Point>,
 {
     let mut min_x = None;
     let mut max_x = None;

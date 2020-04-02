@@ -1,11 +1,12 @@
-use anyhow::{Result, Error, anyhow as ah};
+use anyhow::{anyhow as ah, Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::cmp::{Ordering, Ord};
-use std::ops::{Add, Sub, AddAssign, SubAssign};
+use std::cmp::{Ord, Ordering};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 lazy_static! {
-    static ref RE_D3: Regex = Regex::new(r##"<x= *(?P<x>-?\d+), y= *(?P<y>-?\d+), z= *(?P<z>-?\d+)>"##).unwrap();
+    static ref RE_D3: Regex =
+        Regex::new(r##"<x= *(?P<x>-?\d+), y= *(?P<y>-?\d+), z= *(?P<z>-?\d+)>"##).unwrap();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,11 +73,7 @@ impl Sub for D3 {
 
 impl Default for D3 {
     fn default() -> Self {
-        D3 {
-            x: 0,
-            y: 0,
-            z: 0,
-        }
+        D3 { x: 0, y: 0, z: 0 }
     }
 }
 
@@ -119,8 +116,7 @@ fn cap_to_d3(cap: &regex::Captures) -> Result<D3> {
 pub(crate) fn parse(s: &str) -> Result<Vec<D3>> {
     let mut data = vec![];
     for caps in RE_D3.captures_iter(s) {
-        let d3 = cap_to_d3(&caps)
-            .map_err(|e| ah!("{}: {:?}", e, caps))?;
+        let d3 = cap_to_d3(&caps).map_err(|e| ah!("{}: {:?}", e, caps))?;
         data.push(d3);
     }
     Ok(data)
@@ -140,7 +136,11 @@ mod test {
     fn parse_d3() {
         let expected = vec![
             D3 { x: -1, y: 0, z: 2 },
-            D3 { x: 2, y: -10, z: -7 },
+            D3 {
+                x: 2,
+                y: -10,
+                z: -7,
+            },
             D3 { x: 4, y: -8, z: 8 },
             D3 { x: 3, y: 5, z: -1 },
         ];
@@ -158,7 +158,7 @@ mod test {
             D3 { x: 1, y: -7, z: 5 },
             D3 { x: -3, y: 1, z: -3 },
             D3 { x: 2, y: 2, z: 0 },
-            D3 { x: -1, y: -3, z: 1 }
+            D3 { x: -1, y: -3, z: 1 },
         ];
         let actual = parse(D12_EX1_STEP1).unwrap();
         assert_eq!(actual, expected);

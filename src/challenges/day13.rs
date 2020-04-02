@@ -1,10 +1,11 @@
+use crate::challenges::day13::game::{Board, Screen, Tile};
+use crate::display::ImageNormal;
+use crate::intcode::intcode_io::{Input, VecIO};
 use crate::intcode::{run_intcode, IntCode};
 use crate::util::parse_intcode;
 use anyhow::Result;
 use itertools::Itertools;
-use crate::challenges::day13::game::{Board, Tile, JoyStick, Screen};
-use crate::display::ImageNormal;
-use crate::intcode::intcode_io::VecIO;
+use std::io::Read;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -14,43 +15,37 @@ pub fn part1(input: &str) -> Result<String> {
         let tile = Tile::from(chunk[2]);
         board.add(chunk[0] as i32, chunk[1] as i32, tile);
     }
-    let blocks = board
-        .inner
-        .values()
-        .filter(|t| **t == Tile::Block)
-        .count();
+    let blocks = board.inner.values().filter(|t| **t == Tile::Block).count();
     Ok(format!("{}", blocks))
 }
 
 pub fn part2(input: &str) -> Result<String> {
     let mut intcode = parse_intcode(input)?;
-
-    // Setup Board
     let (_, out) = run_intcode(intcode.clone(), vec![])?;
     let mut board = Board::default();
     for chunk in out.as_slice().chunks_exact(3) {
         let tile = Tile::from(chunk[2]);
         board.add(chunk[0] as i32, chunk[1] as i32, tile);
     }
+
     let mut img = ImageNormal::create(&board.inner);
+    let screen = Screen::new(board, img);
 
     // insert 2 quarters
     intcode[0] = 2;
-
-    let screen = Screen::new(board, img);
-    let mut ic = IntCode::new(intcode, JoyStick, screen);
+    let mut ic = IntCode::new_from_device(intcode, screen);
     ic.run_till_end()?;
+    let (_, mut screen) = ic.emit();
 
-    Ok(format!("{}", 0))
+    Ok(format!("{}", screen.score))
 }
 
 mod game {
+    use crate::display::ImageNormal;
+    use crate::intcode::intcode_io::{Input, Output};
+    use anyhow::Result;
     use std::collections::HashMap;
     use std::fmt;
-    pub(crate) use joystick::JoyStick;
-    use crate::display::ImageNormal;
-    use crate::intcode::intcode_io::Output;
-    use anyhow::Result;
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Tile {
@@ -74,22 +69,27 @@ mod game {
     }
 
     pub struct Screen {
-        board: Board,
+        pub board: Board,
         image: ImageNormal<Tile>,
-        score: i64,
+        pub score: i64,
         instruction: Vec<i64>,
     }
 
     impl Screen {
-        pub fn new(board: Board, image: ImageNormal<Tile>) -> Screen {
-            Screen { board, image, score: 0, instruction: Vec::new() }
+        pub(crate) fn new(board: Board, image: ImageNormal<Tile>) -> Screen {
+            Screen {
+                board,
+                image,
+                score: 0,
+                instruction: Vec::new(),
+            }
         }
         fn disp(&mut self) {
             self.image.update(&self.board.inner);
             println!("Score: {}", self.score);
             println!("{}", self.image);
         }
-        fn update(&mut self, instr: i64) -> bool {
+        fn update(&mut self, instr: i64) {
             self.instruction.push(instr);
             if self.instruction.len() == 3 {
                 let x = self.instruction[0];
@@ -101,30 +101,53 @@ mod game {
                     self.board.add(x as i32, y as i32, Tile::from(d));
                 }
                 self.instruction.clear();
-                true
-            } else {
-                false
             }
+        }
+    }
+
+    impl Input for Screen {
+        fn input(&mut self) -> Result<i64> {
+            let d = self.board.off_by().unwrap();
+            Ok(if d > 0 {
+                1
+            } else if d < 0 {
+                -1
+            } else {
+                0
+            })
         }
     }
 
     impl Output for Screen {
         fn output(&mut self, out: i64) -> Result<()> {
-            if self.update(out) {
-                self.disp();
-            }
+            self.update(out);
             Ok(())
         }
     }
 
     #[derive(Debug, Default)]
     pub struct Board {
-        pub inner: HashMap<(i32, i32), Tile>
+        pub inner: HashMap<(i32, i32), Tile>,
     }
 
     impl Board {
         pub fn add(&mut self, x: i32, y: i32, tile: Tile) {
             self.inner.insert((x, y), tile);
+        }
+        pub fn off_by(&self) -> Option<i64> {
+            let mut paddle = None;
+            let mut ball = None;
+            for ((x, y), t) in self.inner.iter() {
+                match t {
+                    Tile::Paddle => paddle = Some(*x),
+                    Tile::Ball => ball = Some(*x),
+                    _ => {}
+                }
+                if let Some(d) = paddle.and_then(|p| ball.map(|b| b - p)) {
+                    return Some(d as i64);
+                }
+            }
+            None
         }
     }
 
@@ -140,45 +163,7 @@ mod game {
             }
         }
     }
-
-    mod joystick {
-        use crate::intcode::intcode_io::Input;
-        use anyhow::Result;
-        use std::io;
-
-        enum Movement {
-            None,
-            Left,
-            Right,
-        }
-
-        impl From<Movement> for i64 {
-            fn from(m: Movement) -> Self {
-                match m {
-                    Movement::None => 0,
-                    Movement::Left => -1,
-                    Movement::Right => 1,
-                }
-            }
-        }
-
-        pub(crate) struct JoyStick;
-
-        impl Input for JoyStick {
-            fn input(&mut self) -> Result<i64> {
-                let mut ret = String::new();
-                io::stdin().read_line(&mut ret)?;
-                let step = match ret.as_str() {
-                    "a\n" => Movement::Left,
-                    "d\n" => Movement::Right,
-                    _ => Movement::None,
-                };
-                Ok(step.into())
-            }
-        }
-    }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -192,7 +177,6 @@ mod test {
 
     #[test]
     fn day13part2() {
-        assert_eq!(part2(DAY13_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY13_INPUT).unwrap().as_str(), "12099")
     }
 }
-

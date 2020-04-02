@@ -21,6 +21,23 @@ impl Output for Box<dyn Output + Send> {
     }
 }
 
+pub struct FusedIO<I, O> {
+    pub input: I,
+    pub output: O,
+}
+
+impl<I: Input, O> Input for FusedIO<I, O> {
+    fn input(&mut self) -> Result<i64> {
+        self.input.input()
+    }
+}
+
+impl<I, O: Output> Output for FusedIO<I, O> {
+    fn output(&mut self, out: i64) -> Result<()> {
+        self.output.output(out)
+    }
+}
+
 #[derive(Debug)]
 pub struct NullIO;
 

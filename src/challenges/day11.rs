@@ -1,12 +1,12 @@
+use crate::display::ImageNormal;
+use crate::intcode::intcode_io::{FusedIO, Input, Output};
 use crate::intcode::{run_intcode, IntCode};
 use crate::util::parse_intcode;
-use anyhow::{Result, Error};
+use anyhow::{Error, Result};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::fmt;
-use crate::intcode::intcode_io::{Input, Output};
 use std::fmt::Formatter;
-use crate::display::{ImageNormal};
+use std::sync::{Arc, Mutex};
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -31,8 +31,8 @@ fn run_robot(intcode: Vec<i64>, hull: Hull) -> Result<RobotController> {
     let (r_in, r_out) = robot_io(hull);
     let mut ic = IntCode::new(intcode, r_in, r_out);
     ic.run_till_end()?;
-    let (_, out) = ic.emit();
-    Ok(out)
+    let (_, FusedIO { output, .. }) = ic.emit();
+    Ok(output)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -134,7 +134,7 @@ impl RobotState {
 
 #[derive(Debug)]
 pub(crate) struct Hull {
-    inner: HashMap<(i32, i32), Color>
+    inner: HashMap<(i32, i32), Color>,
 }
 
 impl Hull {
@@ -174,7 +174,6 @@ impl Robot {
                 x: 0,
                 y: 0,
                 heading: Heading::North,
-
             },
             hull,
         }
@@ -183,9 +182,7 @@ impl Robot {
 
 fn robot_io(hull: Hull) -> (RobotCamera, RobotController) {
     let r = Arc::new(Mutex::new(Robot::new(hull)));
-    let input = RobotCamera {
-        robot: r.clone(),
-    };
+    let input = RobotCamera { robot: r.clone() };
     let output = RobotController {
         robot: r,
         is_rotate: false,
@@ -193,19 +190,15 @@ fn robot_io(hull: Hull) -> (RobotCamera, RobotController) {
     (input, output)
 }
 
-
 #[derive(Debug)]
 struct RobotCamera {
-    robot: Arc<Mutex<Robot>>
+    robot: Arc<Mutex<Robot>>,
 }
 
 impl Input for RobotCamera {
     fn input(&mut self) -> Result<i64, Error> {
         let r = self.robot.lock().unwrap();
-        let c = r.hull.read(
-            r.robot.x,
-            r.robot.y,
-        );
+        let c = r.hull.read(r.robot.x, r.robot.y);
         Ok(c.into())
     }
 }
@@ -245,6 +238,9 @@ mod test {
 
     #[test]
     fn check_part2() {
-        assert_eq!(part2(DAY11_INPUT).unwrap().trim(), DAY11_PART2_OUTPUT.trim())
+        assert_eq!(
+            part2(DAY11_INPUT).unwrap().trim(),
+            DAY11_PART2_OUTPUT.trim()
+        )
     }
 }

@@ -96,7 +96,7 @@ impl WireSegment {
                 } else {
                     WireIntersect::None
                 }
-            },
+            }
             (WireAxis::Horizontal(x1), WireAxis::Horizontal(x2)) => {
                 if x1 != x2 {
                     WireIntersect::None
@@ -107,7 +107,7 @@ impl WireSegment {
                 } else {
                     WireIntersect::None
                 }
-            },
+            }
             (WireAxis::Vertical(y1), WireAxis::Vertical(y2)) => {
                 if y1 != y2 {
                     WireIntersect::None
@@ -118,7 +118,7 @@ impl WireSegment {
                 } else {
                     WireIntersect::None
                 }
-            },
+            }
         }
     }
 }
@@ -148,18 +148,18 @@ fn wire_crossings(w1: &Wire, w2: &Wire) -> Vec<WirePoint> {
     for w1s in &w1.inner {
         for w2s in &w2.inner {
             match w1s.intersection(*w2s) {
-                WireIntersect::None => {},
+                WireIntersect::None => {}
                 WireIntersect::Point(p) => {
                     if p != WirePoint::default() {
                         result.push(p)
                     }
-                },
+                }
                 WireIntersect::Run => {
                     warn!(
                         slog_scope::logger(),
                         "Run intersection: {:?}, {:?}", w1s, w2s
                     );
-                },
+                }
             }
         }
     }

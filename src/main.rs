@@ -47,14 +47,22 @@ pub mod util {
         input
             .lines()
             .flat_map(|l| l.split(','))
+            .filter_map(|ns| {
+                let s: &str = ns.trim();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            })
             .map(|ns| parse_str::<i64>(ns))
             .collect()
     }
 }
 
+pub mod display;
 pub mod intcode;
 pub mod orbital_data;
-pub mod display;
 
 pub mod challenges {
     pub mod day1;
@@ -114,7 +122,7 @@ pub mod challenges {
                     d,
                     p
                 ))
-            },
+            }
         };
         println!("{}", result);
         Ok(())
