@@ -82,7 +82,7 @@ mod game {
 
     impl Screen {
         pub fn new(board: Board, image: ImageNormal<Tile>) -> Screen {
-            Screen { board, image, score: 0 , instruction: Vec::new()}
+            Screen { board, image, score: 0, instruction: Vec::new() }
         }
         fn disp(&mut self) {
             self.image.update(&self.board.inner);
@@ -145,8 +145,6 @@ mod game {
         use crate::intcode::intcode_io::Input;
         use anyhow::Result;
         use std::io;
-        use std::sync::{Arc, Mutex};
-        use crate::challenges::day13::game::Screen;
 
         enum Movement {
             None,
@@ -164,9 +162,7 @@ mod game {
             }
         }
 
-        pub(crate) struct JoyStick{
-            screen: Arc<Mutex<Screen>>,
-        };
+        pub(crate) struct JoyStick;
 
         impl Input for JoyStick {
             fn input(&mut self) -> Result<i64> {
@@ -181,7 +177,6 @@ mod game {
             }
         }
     }
-
 }
 
 
