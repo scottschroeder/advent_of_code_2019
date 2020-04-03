@@ -20,7 +20,6 @@ pub mod util {
     use std::str::FromStr;
     use std::{fs, path};
 
-
     pub fn parse_str<T>(s: &str) -> Result<T>
     where
         T: FromStr,

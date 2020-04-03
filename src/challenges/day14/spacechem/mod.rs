@@ -1,20 +1,32 @@
-use anyhow::{Result, anyhow as ah};
 use crate::util::parse_str;
+use anyhow::{anyhow as ah, Result};
+use num::Integer;
 use reaction_parser::parse_reaction_manifest;
 use std::collections::{HashMap, HashSet, VecDeque};
-use num::Integer;
 
 mod reaction_parser;
 
 pub(crate) fn ore_search(manifest: &str) -> i64 {
     let factory = NanoFactory::parse_reactions(manifest).unwrap();
-    let supply = factory.make_one(&("FUEL".into()));
+    let supply = factory.make_n(&("FUEL".into()), 1);
     -supply.get(&Molecule::from("ORE"))
 }
 
+pub(crate) fn fuel_from_ore(manifest: &str, amount: i64) -> i64 {
+    let factory = NanoFactory::parse_reactions(manifest).unwrap();
+    factory.search(
+        &("FUEL".into()),
+        Quantity {
+            amount,
+            molecule: "ORE".into(),
+        },
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Molecule { name: String }
+struct Molecule {
+    name: String,
+}
 
 impl<T: Into<String>> From<T> for Molecule {
     fn from(s: T) -> Self {
@@ -35,7 +47,7 @@ pub(crate) struct Reaction {
 }
 
 pub(crate) struct NanoFactory {
-    manifest: HashMap<Molecule, Reaction>
+    manifest: HashMap<Molecule, Reaction>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -53,14 +65,10 @@ impl Supply {
     fn get(&self, m: &Molecule) -> i64 {
         self.inner.get(m).cloned().unwrap_or(0)
     }
-    fn deficit(&self) -> impl Iterator<Item=Molecule> + '_{
-        self.inner.iter().filter_map(|(m, q)| {
-            if *q < 0 {
-                Some(m.clone())
-            } else {
-                None
-            }
-        })
+    fn deficit(&self) -> impl Iterator<Item = Molecule> + '_ {
+        self.inner
+            .iter()
+            .filter_map(|(m, q)| if *q < 0 { Some(m.clone()) } else { None })
     }
 }
 
@@ -97,30 +105,46 @@ impl NanoFactory {
             }
         }
     }
-    fn make_one(&self, desired: &Molecule) -> Supply {
+    fn make_n(&self, desired: &Molecule, n: i64) -> Supply {
         let mut supply = Supply::default();
-        supply.set(desired.clone(), -1);
+        supply.set(desired.clone(), -n);
         self.resolve(&mut supply);
         supply
     }
 
-    fn search(&self, desired: &Molecule, limit: Quantity) -> Supply {
-        let mut supply = self.make_one(desired);
-        let lower = -supply.get(&limit.molecule);
-        let created = supply.get(&desired) + 1;
-        let slope = created as f64 / lower as f64;
-        let guess = limit.amount as f64 * slope;
-        trace!(slog_scope::logger(), "input: {} output: {} slope: {} guess: {}", lower, created, slope, guess);
-        supply.set(desired.clone(), guess as i64 - created);
-        self.resolve(&mut supply);
-        trace!(slog_scope::logger(), "{:#?}", supply);
-        supply
+    fn search(&self, desired: &Molecule, limit: Quantity) -> i64 {
+        let f_prime = |x: i64| {
+            let mut supply = self.make_n(desired, x);
+            let x0 = supply.get(&desired) + x;
+            let y0 = -supply.get(&limit.molecule);
+            let slope = y0 as f64 / x0 as f64;
+            trace!(
+                slog_scope::logger(),
+                "input: {} x: {} y: {} slope: {}",
+                x,
+                x0,
+                y0,
+                slope
+            );
+            slope
+        };
+        let mut guess = 1;
+        loop {
+            let old_guess = guess;
+            let r = f_prime(old_guess);
+            guess = (limit.amount as f64 / r) as i64;
+            if old_guess == guess {
+                break guess;
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const PT2_SUPPLY: i64 = 1_000_000_000_000;
 
     const EX1: &str = r##"
         10 ORE => 10 A
@@ -190,12 +214,12 @@ mod tests {
 
     fn check_supply(manifest: &str, expected_supply: Vec<(&str, i64)>) {
         let factory = NanoFactory::parse_reactions(manifest).unwrap();
-        let supply = factory.make_one(&("FUEL".into()));
+        let supply = factory.make_n(&("FUEL".into()), 1);
         let expected = Supply {
             inner: expected_supply
                 .into_iter()
                 .map(|(s, c)| (Molecule::from(s), c))
-                .collect::<HashMap<Molecule, i64>>()
+                .collect::<HashMap<Molecule, i64>>(),
         };
 
         assert_eq!(supply, expected);
@@ -203,13 +227,7 @@ mod tests {
 
     #[test]
     fn test_super_simple_manifest() {
-        check_supply(
-            "2 ORE => 1 FUEL",
-            vec![
-                ("FUEL", 0),
-                ("ORE", -2),
-            ],
-        )
+        check_supply("2 ORE => 1 FUEL", vec![("FUEL", 0), ("ORE", -2)])
     }
 
     #[test]
@@ -219,11 +237,7 @@ mod tests {
                 2 ORE => 2 A
                 3 A => 2 FUEL
             "#,
-            vec![
-                ("FUEL", 1),
-                ("A", 1),
-                ("ORE", -4),
-            ],
+            vec![("FUEL", 1), ("A", 1), ("ORE", -4)],
         )
     }
 
@@ -250,5 +264,20 @@ mod tests {
     #[test]
     fn ex5() {
         assert_eq!(ore_search(EX5), 2210736);
+    }
+
+    #[test]
+    fn ex3_p2() {
+        assert_eq!(fuel_from_ore(EX3, PT2_SUPPLY), 82892753)
+    }
+
+    #[test]
+    fn ex4_p2() {
+        assert_eq!(fuel_from_ore(EX4, PT2_SUPPLY), 5586022)
+    }
+
+    #[test]
+    fn ex5_p2() {
+        assert_eq!(fuel_from_ore(EX5, PT2_SUPPLY), 460664)
     }
 }
