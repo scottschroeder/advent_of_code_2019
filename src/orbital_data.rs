@@ -1,21 +1,22 @@
-use crate::orbital_data::warshall::TransitiveClosure;
+use crate::orbital_data::transitive151::TransitiveClosure;
 use petgraph::graphmap::GraphMap;
 
-mod warshall {
+mod transitive151 {
+    use fixedbitset::FixedBitSet;
     use petgraph::visit::*;
     use std::fmt::{Debug, Error, Formatter};
 
     pub struct TransitiveClosure {
-        inner: Vec<bool>,
-        size: usize,
+        inner: FixedBitSet,
+        width: usize,
     }
 
     impl Debug for TransitiveClosure {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
             write!(f, "TransitiveClosure {{")?;
-            for src in 0..self.size {
+            for src in 0..self.width {
                 write!(f, "\n\t")?;
-                for dst in 0..self.size {
+                for dst in 0..self.width {
                     write!(f, "{}", if self.is_reachable(src, dst) { 1 } else { 0 })?;
                 }
             }
@@ -25,60 +26,57 @@ mod warshall {
     }
 
     impl TransitiveClosure {
-        pub fn new(size: usize) -> TransitiveClosure {
-            TransitiveClosure {
-                inner: vec![false; size * size],
-                size,
-            }
+        pub fn new(set: FixedBitSet, size: usize) -> TransitiveClosure {
+            let mut tc = TransitiveClosure {
+                inner: set,
+                width: size,
+            };
+            tc
         }
 
         #[inline]
         pub fn is_reachable(&self, src: usize, dst: usize) -> bool {
-            self.inner[src * self.size + dst]
+            self.inner[self.index(src, dst)]
         }
 
         #[inline]
-        fn connect(&mut self, src: usize, dst: usize) {
-            self.inner[src * self.size + dst] = true
+        fn index(&self, src: usize, dst: usize) -> usize {
+            src * self.width + dst
         }
 
         pub fn connections(&self) -> usize {
-            self.inner.iter().map(|b| if *b { 1 } else { 0 }).sum()
+            self.inner.ones().count()
         }
     }
 
-    pub(crate) fn warshall_transitive_closure<G>(g: G) -> TransitiveClosure
-    where
-        G: GraphBase + GetAdjacencyMatrix + IntoNodeIdentifiers + NodeIndexable,
+
+    pub fn transitive_closure<G>(g: G) -> TransitiveClosure
+        where G: NodeIndexable + NodeCount + IntoNeighbors + IntoNodeIdentifiers + Visitable
     {
-        let size = g.node_bound() as usize;
-        let mut tc = TransitiveClosure::new(size);
 
-        let adj = g.adjacency_matrix();
+        let n = g.node_count();
+        let mut matrix = FixedBitSet::with_capacity(n * n);
+        let mut dfs = Dfs::empty(g);
 
-        for i_node in g.node_identifiers() {
-            let idx = g.to_index(i_node);
-            for j_node in g.node_identifiers() {
-                let jdx = g.to_index(j_node);
-                if g.is_adjacent(&adj, i_node, j_node) {
-                    tc.connect(idx, jdx)
-                }
+        for node in g.node_identifiers() {
+            dfs.reset(g);
+            dfs.move_to(node);
+            let i = g.to_index(node);
+            matrix.put(i * n + i);
+            while let Some(visited) = dfs.next(g) {
+                let i = i * n + g.to_index(visited);
+                matrix.put(i);
             }
         }
 
-        for k in 0..tc.size {
-            for i in 0..tc.size {
-                for j in 0..tc.size {
-                    if tc.is_reachable(i, k) && tc.is_reachable(k, j) {
-                        tc.connect(i, j)
-                    }
-                }
-            }
+        for idx in 0..n {
+            matrix.set(idx * n + idx, false);
         }
 
-        tc
+        TransitiveClosure::new(matrix, n)
     }
 }
+
 
 #[derive(Debug, Clone, Default)]
 pub struct OrbitalMap<'a> {
@@ -97,7 +95,7 @@ impl<'a> OrbitalMap<'a> {
         new
     }
     pub fn transitive_closure(&self) -> TransitiveClosure {
-        self::warshall::warshall_transitive_closure(&self.inner)
+        self::transitive151::transitive_closure(&self.inner)
     }
 
     pub fn shortest_path(&self, src: &str, dst: &str) -> Option<usize> {

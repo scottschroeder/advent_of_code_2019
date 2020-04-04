@@ -244,7 +244,6 @@ mod test {
     use super::*;
     use crate::challenges::test::*;
 
-
     #[test]
     fn parse_day8() {
         assert!(parse_digits(DAY8_INPUT).unwrap().len() > 0)

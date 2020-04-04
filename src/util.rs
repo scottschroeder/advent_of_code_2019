@@ -1,14 +1,14 @@
 use anyhow::{anyhow as ah, Context, Result};
+pub use digits::{digits, digits_to_int, parse_digits};
 use std::fmt::Display;
 use std::io::Read;
 use std::str::FromStr;
 use std::{fs, path};
-pub use digits::{digits, parse_digits};
 
 pub fn parse_str<T>(s: &str) -> Result<T>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: Display,
+where
+    T: FromStr,
+    <T as FromStr>::Err: Display,
 {
     T::from_str(s).map_err(|e| ah!("{}", e))
 }
@@ -66,18 +66,28 @@ mod digits {
             .trim()
             .chars()
             .map(|c| {
-                c
-                    .to_digit(10)
+                c.to_digit(10)
                     .ok_or_else(|| ah!("could not parse '{}' as digit", c))
                     .map(|d| d as u8)
             })
             .collect()
     }
 
+    pub fn digits_to_int(digits: &[u8]) -> u64 {
+        digits
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(idx, d)| {
+                let d = *d as u64;
+                d * 10u64.pow(idx as u32)
+            })
+            .sum()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
-
 
         #[test]
         fn digits_in() {
@@ -107,6 +117,29 @@ mod digits {
                 parse_digits("0123456789101112").unwrap(),
                 vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 0, 1, 1, 1, 2]
             )
+        }
+
+        #[test]
+        fn to_int_empty() {
+            assert_eq!(digits_to_int(&vec![]), 0);
+        }
+
+        #[test]
+        fn to_int_simple() {
+            assert_eq!(digits_to_int(&vec![1, 3]), 13);
+        }
+
+        #[test]
+        fn to_int_leading_zero() {
+            assert_eq!(digits_to_int(&vec![0, 1, 3]), 13);
+        }
+
+        #[test]
+        fn to_int_large() {
+            assert_eq!(
+                digits_to_int(&vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                1_000_000_000_000
+            );
         }
     }
 }

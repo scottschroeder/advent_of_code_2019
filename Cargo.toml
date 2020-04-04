@@ -11,6 +11,7 @@ clap = "2.33.0"
 anyhow = "1.0.26"
 
 petgraph = "0.5.0"
+fixedbitset = "0.2.0"
 itertools = "0.8.2"
 num = "0.2"
 regex = "1"

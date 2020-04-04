@@ -1,4 +1,4 @@
-use crate::util::{parse_str, digits};
+use crate::util::{digits, parse_str};
 use anyhow::Result;
 
 pub fn part1(input: &str) -> Result<String> {
