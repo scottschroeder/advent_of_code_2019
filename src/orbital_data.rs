@@ -36,12 +36,7 @@ mod transitive151 {
 
         #[inline]
         pub fn is_reachable(&self, src: usize, dst: usize) -> bool {
-            self.inner[self.index(src, dst)]
-        }
-
-        #[inline]
-        fn index(&self, src: usize, dst: usize) -> usize {
-            src * self.width + dst
+            self.inner[src * self.width + dst]
         }
 
         pub fn connections(&self) -> usize {
@@ -49,11 +44,10 @@ mod transitive151 {
         }
     }
 
-
     pub fn transitive_closure<G>(g: G) -> TransitiveClosure
-        where G: NodeIndexable + NodeCount + IntoNeighbors + IntoNodeIdentifiers + Visitable
+    where
+        G: NodeIndexable + NodeCount + IntoNeighbors + IntoNodeIdentifiers + Visitable,
     {
-
         let n = g.node_count();
         let mut matrix = FixedBitSet::with_capacity(n * n);
         let mut dfs = Dfs::empty(g);
@@ -76,7 +70,6 @@ mod transitive151 {
         TransitiveClosure::new(matrix, n)
     }
 }
-
 
 #[derive(Debug, Clone, Default)]
 pub struct OrbitalMap<'a> {
@@ -115,6 +108,7 @@ impl<'a> OrbitalMap<'a> {
         })
     }
 }
+
 pub fn parse_orbital_data(input: &str) -> Vec<(&str, &str)> {
     input
         .lines()
