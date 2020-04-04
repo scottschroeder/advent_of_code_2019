@@ -7,20 +7,27 @@ The size can be unknown
 
 use std::fmt;
 use std::iter::FromIterator;
+use std::fmt::{Formatter, Error};
 
 #[derive(Default)]
 pub struct VON;
+
 #[derive(Default)]
 pub struct VOF;
 
 pub trait VerticalOrientation: Default {
     fn offset(ymin: i32, ymax: i32, y: i32) -> i32;
+    fn absolute(ymin: i32, ymax: i32, dy: i32) -> i32;
 }
 
 impl VerticalOrientation for VON {
     #[inline]
     fn offset(ymin: i32, ymax: i32, y: i32) -> i32 {
         ymax - y
+    }
+    #[inline]
+    fn absolute(ymin: i32, ymax: i32, dy: i32) -> i32 {
+        ymax - dy
     }
 }
 
@@ -29,12 +36,22 @@ impl VerticalOrientation for VOF {
     fn offset(ymin: i32, ymax: i32, y: i32) -> i32 {
         y - ymin
     }
+    #[inline]
+    fn absolute(ymin: i32, ymax: i32, dy: i32) -> i32 {
+        dy + ymin
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Point {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
 }
 
 impl From<(i32, i32)> for Point {
@@ -49,9 +66,18 @@ impl From<&(i32, i32)> for Point {
     }
 }
 
+impl From<&Point> for Point {
+    fn from(p: &Point) -> Self {
+        *p
+    }
+}
+
 impl Point {
     pub fn new(x: i32, y: i32) -> Point {
         Point { x, y }
+    }
+    pub fn step_dist(&self, other: &Point) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
     }
 }
 
@@ -60,6 +86,7 @@ pub type ImageFlip<T> = Image<T, VOF>;
 
 pub struct Image<T, V> {
     frame: Frame,
+    grid: bool,
     pub data: Vec<Option<T>>,
     v: V,
 }
@@ -71,16 +98,20 @@ impl<T, V> Image<T, V> {
 }
 
 impl<T: Clone, V: VerticalOrientation> Image<T, V> {
+    pub fn display_grid(&mut self, enable: bool) {
+        self.grid = enable;
+    }
     pub fn create<'a, I, P>(iter: &'a I) -> Image<T, V>
-    where
-        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
-        &'a P: Into<Point>,
-        T: 'a,
-        P: 'a,
+        where
+            &'a I: IntoIterator<Item=(&'a P, &'a T)>,
+            &'a P: Into<Point>,
+            T: 'a,
+            P: 'a,
     {
         let mut frame = size_frame(iter);
         let mut img = Image {
             frame,
+            grid: false,
             data: Vec::new(),
             v: V::default(),
         };
@@ -88,12 +119,13 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
         img
     }
 
+
     pub fn update<'a, I, P>(&mut self, iter: &'a I)
-    where
-        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
-        &'a P: Into<Point>,
-        T: 'a,
-        P: 'a,
+        where
+            &'a I: IntoIterator<Item=(&'a P, &'a T)>,
+            &'a P: Into<Point>,
+            T: 'a,
+            P: 'a,
     {
         self.data = vec![None; self.frame.len()];
 
@@ -104,18 +136,31 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
     }
 }
 
-impl<T: fmt::Display, V> fmt::Display for Image<T, V> {
+impl<T: fmt::Display, V: VerticalOrientation> fmt::Display for Image<T, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let w = self.width() as usize;
+
         for (idx, v) in self.data.iter().enumerate() {
-            if idx > 0 && idx % w == 0 {
-                writeln!(f, "")?;
+            if idx % w == 0 {
+                let p = self.frame.point::<V>(idx);
+                if self.grid {
+                    write!(f, "\n{}\t", p.y)?;
+                } else {
+                    writeln!(f, "")?;
+                }
             }
             if let Some(t) = v {
                 write!(f, "{}", t)?;
             } else {
                 write!(f, " ")?;
             }
+        }
+        if self.grid {
+            write!(f, "\n\t")?;
+            for x in self.frame.min_x..(self.frame.max_x + 1) {
+                write!(f, "{}", (x % 10).abs())?;
+            }
+            writeln!(f, "")?;
         }
         Ok(())
     }
@@ -149,13 +194,21 @@ impl Frame {
         let idx = (dx + w * dy) as usize;
         idx
     }
+    #[inline]
+    fn point<V: VerticalOrientation>(&self, idx: usize) -> Point {
+        let idx = idx as i32;
+        let w = self.width();
+        let x = idx % w;
+        let y = V::absolute(self.min_y, self.max_y, idx / w);
+        Point {x, y}
+    }
 }
 
 fn size_frame<'a, I, T: 'a, P>(iter: &'a I) -> Frame
-where
-    &'a I: IntoIterator<Item = (&'a P, &'a T)>,
-    P: 'a,
-    &'a P: Into<Point>,
+    where
+        &'a I: IntoIterator<Item=(&'a P, &'a T)>,
+        P: 'a,
+        &'a P: Into<Point>,
 {
     let mut min_x = None;
     let mut max_x = None;
