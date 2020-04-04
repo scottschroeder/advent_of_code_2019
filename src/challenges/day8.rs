@@ -1,8 +1,9 @@
 use self::space_image_format::Image;
+use crate::util::parse_digits;
 use anyhow::Result;
 
 pub fn part1(input: &str) -> Result<String> {
-    let data = parse_digits(input);
+    let data = parse_digits(input)?;
     let img = Image::new(data, 25, 6);
 
     let mut min_layer = None;
@@ -20,18 +21,10 @@ pub fn part1(input: &str) -> Result<String> {
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    let data = parse_digits(input);
+    let data = parse_digits(input)?;
     let img = Image::new(data, 25, 6);
     let canvas = img.render();
     Ok(format!("{}", canvas))
-}
-
-fn parse_digits(input: &str) -> Vec<u8> {
-    input
-        .trim()
-        .chars()
-        .map(|c| c.to_digit(10).unwrap() as u8)
-        .collect()
 }
 
 fn checksum_layer(data: &[u8]) -> (u64, u64, u64) {
@@ -251,27 +244,10 @@ mod test {
     use super::*;
     use crate::challenges::test::*;
 
-    #[test]
-    fn parse_empty_digits() {
-        assert_eq!(parse_digits(""), vec![])
-    }
-
-    #[test]
-    fn parse_one_digit() {
-        assert_eq!(parse_digits("3"), vec![3])
-    }
-
-    #[test]
-    fn parse_all_digits() {
-        assert_eq!(
-            parse_digits("0123456789101112"),
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 0, 1, 1, 1, 2]
-        )
-    }
 
     #[test]
     fn parse_day8() {
-        assert!(parse_digits(DAY8_INPUT).len() > 0)
+        assert!(parse_digits(DAY8_INPUT).unwrap().len() > 0)
     }
 
     #[test]

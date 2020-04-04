@@ -1,4 +1,4 @@
-use crate::util::parse_str;
+use crate::util::{parse_str, digits};
 use anyhow::Result;
 
 pub fn part1(input: &str) -> Result<String> {
@@ -67,20 +67,6 @@ fn is_valid_password_part2(x: u64) -> bool {
     double
 }
 
-fn digits(mut x: u64) -> Vec<u8> {
-    if x == 0 {
-        return vec![0];
-    }
-    const BASE: u64 = 10;
-    let mut result = vec![];
-    while x != 0 {
-        result.push((x % BASE) as u8);
-        x /= BASE;
-    }
-    result.reverse();
-    result
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -90,13 +76,6 @@ mod test {
     fn parse_ranges() {
         assert_eq!(parse_range("23-57").unwrap(), (23, 57));
         assert_eq!(parse_range("265275-781584").unwrap(), (265_275, 781_584));
-    }
-
-    #[test]
-    fn digits_in() {
-        assert_eq!(digits(1234), vec![1, 2, 3, 4]);
-        assert_eq!(digits(0), vec![0]);
-        assert_eq!(digits(99845), vec![9, 9, 8, 4, 5]);
     }
 
     #[test]

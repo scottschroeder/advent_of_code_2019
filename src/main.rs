@@ -13,52 +13,7 @@ extern crate slog_term;
 use slog::Drain;
 use std::sync::Arc;
 
-pub mod util {
-    use anyhow::{anyhow as ah, Context, Result};
-    use std::fmt::Display;
-    use std::io::Read;
-    use std::str::FromStr;
-    use std::{fs, path};
-
-    pub fn parse_str<T>(s: &str) -> Result<T>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: Display,
-    {
-        T::from_str(s).map_err(|e| ah!("{}", e))
-    }
-
-    pub fn read_to_string<P: AsRef<path::Path>>(path: P) -> Result<String> {
-        slog_scope::trace!("Reading content of file: {}", path.as_ref().display());
-        let mut f = fs::File::open(&path)
-            .with_context(|| format!("Unable to open path: {}", path.as_ref().display()))?;
-
-        let mut result = String::new();
-
-        f.read_to_string(&mut result)?;
-        Ok(result)
-    }
-
-    pub fn parse_int_lines(input: &str) -> Result<Vec<u64>> {
-        input.lines().map(|l| parse_str::<u64>(l)).collect()
-    }
-
-    pub fn parse_intcode(input: &str) -> Result<Vec<i64>> {
-        input
-            .lines()
-            .flat_map(|l| l.split(','))
-            .filter_map(|ns| {
-                let s: &str = ns.trim();
-                if s.is_empty() {
-                    None
-                } else {
-                    Some(s)
-                }
-            })
-            .map(|ns| parse_str::<i64>(ns))
-            .collect()
-    }
-}
+pub mod util;
 
 pub mod display;
 pub mod intcode;
@@ -81,6 +36,7 @@ pub mod challenges {
     pub mod day13;
     pub mod day14;
     pub mod day15;
+    pub mod day16;
 
     use anyhow::Result;
     use clap::ArgMatches;
@@ -122,6 +78,8 @@ pub mod challenges {
             (14, 2) => day14::part2(&input)?,
             (15, 1) => day15::part1(&input)?,
             (15, 2) => day15::part2(&input)?,
+            (16, 1) => day16::part1(&input)?,
+            (16, 2) => day16::part2(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
@@ -156,6 +114,7 @@ pub mod challenges {
         pub const DAY13_INPUT: &str = include_str!("../input/day13");
         pub const DAY14_INPUT: &str = include_str!("../input/day14");
         pub const DAY15_INPUT: &str = include_str!("../input/day15");
+        //pub const DAY16_INPUT: &str = include_str!("../input/day16");
     }
 }
 
