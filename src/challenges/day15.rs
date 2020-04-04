@@ -1,8 +1,8 @@
+use crate::challenges::day15::o2repair::Robot;
+use crate::display::ImageNormal;
 use crate::intcode::{run_intcode, IntCode};
 use crate::util::parse_intcode;
 use anyhow::Result;
-use crate::challenges::day15::o2repair::Robot;
-use crate::display::ImageNormal;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -20,16 +20,21 @@ pub fn part1(input: &str) -> Result<String> {
 
 pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
-    let (_, out) = run_intcode(intcode, vec![2])?;
-    Ok(format!("{}", out[0]))
+    let mut ic = IntCode::new_from_device(intcode, Robot::new());
+    ic.run_till_end();
+    let (_, robot) = ic.emit();
+
+    let o2 = robot.map.o2system().unwrap();
+    let path = robot.map.longest_path(o2)?;
+    Ok(format!("{}", path.len() - 1))
 }
 
 mod o2repair {
-    use std::collections::HashMap;
-    use crate::intcode::intcode_io::{Output, Input};
-    use anyhow::{Result, anyhow as ah};
-    use std::fmt;
     use crate::display::Point;
+    use crate::intcode::intcode_io::{Input, Output};
+    use anyhow::{anyhow as ah, Result};
+    use std::collections::HashMap;
+    use std::fmt;
     use std::sync::mpsc::RecvTimeoutError::Timeout;
 
     type Graph = petgraph::graphmap::GraphMap<Point, (), petgraph::Undirected>;
@@ -44,12 +49,16 @@ mod o2repair {
 
     impl fmt::Display for Tile {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", match self {
-                Tile::Empty => ".",
-                Tile::Wall => "X",
-                Tile::O2System => "O",
-                Tile::Unknown => "?",
-            })
+            write!(
+                f,
+                "{}",
+                match self {
+                    Tile::Empty => ".",
+                    Tile::Wall => "X",
+                    Tile::O2System => "O",
+                    Tile::Unknown => "?",
+                }
+            )
         }
     }
 
@@ -66,7 +75,7 @@ mod o2repair {
                 0 => Status::Wall,
                 1 => Status::Move,
                 2 => Status::O2,
-                _ => unreachable!("unhandled robot status {}", i)
+                _ => unreachable!("unhandled robot status {}", i),
             }
         }
     }
@@ -90,7 +99,8 @@ mod o2repair {
                 Direction::South => (p.x, p.y - 1),
                 Direction::West => (p.x - 1, p.y),
                 Direction::East => (p.x + 1, p.y),
-            }.into()
+            }
+            .into()
         }
         fn rose() -> [Direction; 4] {
             [
@@ -131,8 +141,11 @@ mod o2repair {
     impl Deck {
         fn new() -> Deck {
             let mut inner = HashMap::new();
-            let mut d = Deck { inner, graph: Graph::new() };
-            d.mark((0,0).into(), Tile::Empty);
+            let mut d = Deck {
+                inner,
+                graph: Graph::new(),
+            };
+            d.mark((0, 0).into(), Tile::Empty);
             d
         }
         fn mark_unknown(&mut self, p: Point) -> bool {
@@ -148,7 +161,7 @@ mod o2repair {
             self.inner.insert(p, t);
             match t {
                 Tile::Wall => self.mark_unreachable(p),
-                Tile::Empty | Tile::O2System | Tile::Unknown => self.mark_traverseable(p)
+                Tile::Empty | Tile::O2System | Tile::Unknown => self.mark_traverseable(p),
             }
         }
         fn mark_unreachable(&mut self, p: Point) {
@@ -165,32 +178,37 @@ mod o2repair {
         fn squares_with<F: Fn(Tile) -> bool>(&self, filter: F) -> Vec<Point> {
             self.inner
                 .iter()
-                .filter_map(|(p, t)| {
-                    if filter(*t) {
-                        Some(*p)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|(p, t)| if filter(*t) { Some(*p) } else { None })
                 .collect()
         }
-        fn to_graph(&self) -> &Graph {
-            &self.graph
-        }
         pub fn path(&self, src: Point, dst: Point) -> Result<Vec<Point>> {
-            let g = self.to_graph();
             petgraph::algo::astar(
-                &g,
+                &self.graph,
                 src,
                 |n| n == dst,
                 |_| 1,
                 |dst| src.step_dist(&dst),
             )
-                .ok_or_else(|| ah!("could not chart course from {} to {}", src, dst))
-                .map(|(_, path)| path)
+            .ok_or_else(|| ah!("could not chart course from {} to {}", src, dst))
+            .map(|(_, path)| path)
+        }
+
+        pub fn longest_path(&self, src: Point) -> Result<Vec<Point>> {
+            let mut bfs = petgraph::visit::Bfs::new(&self.graph, src);
+            let mut terminal = None;
+            while let Some(p) = bfs.next(&self.graph) {
+                terminal = Some(p);
+            }
+
+            terminal
+                .ok_or_else(|| ah!("bfs did not find any nodes"))
+                .and_then(|dst| self.path(src, dst))
         }
         pub fn o2system(&self) -> Option<Point> {
-            self.squares_with(|t| t == Tile::O2System).iter().cloned().next()
+            self.squares_with(|t| t == Tile::O2System)
+                .iter()
+                .cloned()
+                .next()
         }
     }
 
@@ -225,16 +243,13 @@ mod o2repair {
             }
         }
         fn new_frontier(&self) -> Option<Point> {
-            self.map.squares_with(|t| t == Tile::Unknown)
+            self.map
+                .squares_with(|t| t == Tile::Unknown)
                 .iter()
                 .map(|p| (*p, self.loc.step_dist(p)))
                 .fold(None, |acc: Option<(Point, i32)>, x| {
                     if let Some(prev) = acc {
-                        Some(if prev.1 < x.1 {
-                            prev
-                        } else {
-                            x
-                        })
+                        Some(if prev.1 < x.1 { prev } else { x })
                     } else {
                         Some(x)
                     }
@@ -245,7 +260,10 @@ mod o2repair {
 
     impl Input for Robot {
         fn input(&mut self) -> Result<i64> {
-            let dst = self.dst.pop().or_else(|| self.new_frontier())
+            let dst = self
+                .dst
+                .pop()
+                .or_else(|| self.new_frontier())
                 .ok_or_else(|| ah!("no destination"))?;
             if let Some(cmd) = Direction::step(self.loc, dst) {
                 self.cmd = cmd;
@@ -253,13 +271,23 @@ mod o2repair {
             }
             let mut path = self.map.path(self.loc, dst)?;
             if path.len() < 3 {
-                return Err(ah!("path too short? src: {} dst: {} path: {:?}", self.loc, dst, path));
+                return Err(ah!(
+                    "path too short? src: {} dst: {} path: {:?}",
+                    self.loc,
+                    dst,
+                    path
+                ));
             }
             path.reverse();
             path.pop();
             let dst = path.pop().unwrap();
-            let cmd = Direction::step(self.loc, dst)
-                .ok_or_else(|| ah!("path first step was not adjacent? src: {} dst: {}", self.loc, dst))?;
+            let cmd = Direction::step(self.loc, dst).ok_or_else(|| {
+                ah!(
+                    "path first step was not adjacent? src: {} dst: {}",
+                    self.loc,
+                    dst
+                )
+            })?;
             self.cmd = cmd;
             Ok(cmd.into())
         }
@@ -268,10 +296,16 @@ mod o2repair {
     impl Output for Robot {
         fn output(&mut self, out: i64) -> Result<()> {
             let status = Status::from(out);
-            trace!(slog_scope::logger(), "Robot {} went {:?}, found: {:?}", self.loc, self.cmd, status);
+            trace!(
+                slog_scope::logger(),
+                "Robot {} went {:?}, found: {:?}",
+                self.loc,
+                self.cmd,
+                status
+            );
             let pos = self.cmd.moved(self.loc);
             let tile = match status {
-                Status::Wall => { Tile::Wall }
+                Status::Wall => Tile::Wall,
                 Status::Move => {
                     self.loc = pos;
                     Tile::Empty
@@ -302,7 +336,6 @@ mod test {
 
     #[test]
     fn day15part2() {
-        //assert_eq!(part2(DAY15_INPUT).unwrap().as_str(), "87571")
+        assert_eq!(part2(DAY15_INPUT).unwrap().as_str(), "312")
     }
 }
-

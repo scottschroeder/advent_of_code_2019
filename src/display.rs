@@ -6,8 +6,8 @@ The size can be unknown
 */
 
 use std::fmt;
+use std::fmt::{Error, Formatter};
 use std::iter::FromIterator;
-use std::fmt::{Formatter, Error};
 
 #[derive(Default)]
 pub struct VON;
@@ -102,11 +102,11 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
         self.grid = enable;
     }
     pub fn create<'a, I, P>(iter: &'a I) -> Image<T, V>
-        where
-            &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-            &'a P: Into<Point>,
-            T: 'a,
-            P: 'a,
+    where
+        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+        &'a P: Into<Point>,
+        T: 'a,
+        P: 'a,
     {
         let mut frame = size_frame(iter);
         let mut img = Image {
@@ -119,13 +119,12 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
         img
     }
 
-
     pub fn update<'a, I, P>(&mut self, iter: &'a I)
-        where
-            &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-            &'a P: Into<Point>,
-            T: 'a,
-            P: 'a,
+    where
+        &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+        &'a P: Into<Point>,
+        T: 'a,
+        P: 'a,
     {
         self.data = vec![None; self.frame.len()];
 
@@ -200,15 +199,15 @@ impl Frame {
         let w = self.width();
         let x = idx % w;
         let y = V::absolute(self.min_y, self.max_y, idx / w);
-        Point {x, y}
+        Point { x, y }
     }
 }
 
 fn size_frame<'a, I, T: 'a, P>(iter: &'a I) -> Frame
-    where
-        &'a I: IntoIterator<Item=(&'a P, &'a T)>,
-        P: 'a,
-        &'a P: Into<Point>,
+where
+    &'a I: IntoIterator<Item = (&'a P, &'a T)>,
+    P: 'a,
+    &'a P: Into<Point>,
 {
     let mut min_x = None;
     let mut max_x = None;
