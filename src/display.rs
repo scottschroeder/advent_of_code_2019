@@ -8,6 +8,7 @@ The size can be unknown
 use std::fmt;
 use std::fmt::{Error, Formatter};
 use std::iter::FromIterator;
+use std::ops::{Add, Sub};
 
 #[derive(Default)]
 pub struct VON;
@@ -46,6 +47,27 @@ impl VerticalOrientation for VOF {
 pub struct Point {
     pub x: i32,
     pub y: i32,
+}
+
+impl Add for Point {
+    type Output = Point;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Point {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+impl Sub for Point {
+    type Output = Point;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Point {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
 }
 
 impl fmt::Display for Point {
