@@ -1,11 +1,11 @@
+use crate::challenges::day17::Tile::Scaffold;
+use crate::display::Point;
 use crate::intcode::run_intcode;
 use crate::util::parse_intcode;
-use anyhow::{Result, anyhow as ah};
-use crate::display::Point;
-use crate::challenges::day17::Tile::Scaffold;
-use std::sync::mpsc::RecvTimeoutError::Timeout;
-use std::collections::HashMap;
+use anyhow::{anyhow as ah, Result};
 use petgraph::visit::IntoEdges;
+use std::collections::HashMap;
+use std::sync::mpsc::RecvTimeoutError::Timeout;
 
 type Graph = petgraph::graphmap::UnGraphMap<Point, ()>;
 
@@ -20,7 +20,10 @@ pub fn part1(input: &str) -> Result<String> {
     let s = String::from_utf8(out.iter().map(|x| *x as u8).collect::<Vec<_>>())?;
     trace!(slog_scope::logger(), "map:\n{}", s);
 
-    Ok(format!("{}", intersections.iter().map(|p| p.x * p.y).sum::<i32>()))
+    Ok(format!(
+        "{}",
+        intersections.iter().map(|p| p.x * p.y).sum::<i32>()
+    ))
 }
 
 pub fn part2(input: &str) -> Result<String> {
@@ -33,7 +36,11 @@ pub fn part2(input: &str) -> Result<String> {
 
 // Take a map directly as input
 pub fn part2_map(input: &str) -> Result<String> {
-    let out = input.as_bytes().iter().map(|x| *x as i64).collect::<Vec<_>>();
+    let out = input
+        .as_bytes()
+        .iter()
+        .map(|x| *x as i64)
+        .collect::<Vec<_>>();
     program_walk(out.as_slice())?;
 
     Ok(format!("{}", out[0]))
@@ -55,15 +62,12 @@ fn program_walk(map_data: &[i64]) -> Result<()> {
         }
     }
 
-
-    let mut walker = ScaffoldWalker::new(&m, &g, r.loc);
-    //while let Some(()) = walker.step() {}
-    let mut paths = vec![];
-    walker.walk(&mut paths);
-
-    for p in &paths {
-        debug!(slog_scope::logger(), "{:?}", p);
-    }
+    let paths = ScaffoldSearcher::new(&m, &g, r.loc)
+        .map(|p| {
+            debug!(slog_scope::logger(), "{:?}", p);
+            p
+        })
+        .collect::<Vec<WalkPath>>();
     debug!(slog_scope::logger(), "found {} intersections", paths.len());
     Ok(())
 }
@@ -71,20 +75,54 @@ fn program_walk(map_data: &[i64]) -> Result<()> {
 #[derive(Debug, Clone, Copy)]
 enum Intersection {
     Unvisited,
-    Entered { first_approach: Direction, first_departure: Direction },
-    Completed { first_departure: Direction, second_departure: Direction },
+    Entered {
+        first_approach: Direction,
+        first_departure: Direction,
+    },
+    Completed {
+        first_departure: Direction,
+        second_departure: Direction,
+    },
 }
 
 impl Intersection {
     fn adjust(&self, p: Point) -> Point {
         match self {
-            Intersection::Unvisited => { unreachable!("empty intersection has no direction") }
-            Intersection::Entered { first_departure, .. } => first_departure.adjust(p),
-            Intersection::Completed { second_departure, .. } => second_departure.adjust(p),
+            Intersection::Unvisited => unreachable!("empty intersection has no direction"),
+            Intersection::Entered {
+                first_departure, ..
+            } => first_departure.adjust(p),
+            Intersection::Completed {
+                second_departure, ..
+            } => second_departure.adjust(p),
         }
     }
 }
 
+struct ScaffoldSearcher<'a> {
+    stack: Vec<ScaffoldWalker<'a>>,
+}
+
+impl<'a> ScaffoldSearcher<'a> {
+    fn new(map: &'a Map, graph: &'a Graph, start: Point) -> ScaffoldSearcher<'a> {
+        let walker = ScaffoldWalker::new(map, graph, start);
+        ScaffoldSearcher {
+            stack: vec![walker],
+        }
+    }
+}
+
+impl<'a> Iterator for ScaffoldSearcher<'a> {
+    type Item = WalkPath;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(walker) = self.stack.pop() {
+            if let Some(path) = walker.walk(&mut self.stack) {
+                return Some(path);
+            }
+        }
+        None
+    }
+}
 
 // Kinda like an iterator
 #[derive(Clone)]
@@ -103,7 +141,11 @@ impl<'a> ScaffoldWalker<'a> {
         self.intersections
             .into_iter()
             .map(|(p, i)| {
-                if let Intersection::Completed { first_departure, second_departure } = i {
+                if let Intersection::Completed {
+                    first_departure,
+                    second_departure,
+                } = i
+                {
                     Ok((p, (first_departure, second_departure)))
                 } else {
                     Err(())
@@ -126,19 +168,30 @@ impl<'a> ScaffoldWalker<'a> {
             graph,
         }
     }
-    fn branch(&self, incoming: Direction, paths: &mut Vec<WalkPath>) {
+    fn branch(&self, incoming: Direction, branches: &mut Vec<ScaffoldWalker<'a>>) {
         for d in Direction::rose().iter() {
             let mut sub_walker = self.clone();
             if *d == incoming {
                 continue;
             }
             //let intersection = Intersection::Entered(incoming, *d);
-            let intersection = Intersection::Entered { first_approach: incoming, first_departure: *d };
-            sub_walker.intersections.insert(sub_walker.loc, intersection);
+            let intersection = Intersection::Entered {
+                first_approach: incoming,
+                first_departure: *d,
+            };
+            sub_walker
+                .intersections
+                .insert(sub_walker.loc, intersection);
             sub_walker.prev = sub_walker.loc;
             sub_walker.loc = intersection.adjust(sub_walker.loc);
-            trace!(slog_scope::logger(), "creating branch: {:?} {} -> {}", intersection, sub_walker.prev, sub_walker.loc);
-            sub_walker.walk(paths)
+            trace!(
+                slog_scope::logger(),
+                "creating branch: {:?} {} -> {}",
+                intersection,
+                sub_walker.prev,
+                sub_walker.loc
+            );
+            branches.push(sub_walker);
         }
     }
     fn path_step(&mut self) {
@@ -149,25 +202,42 @@ impl<'a> ScaffoldWalker<'a> {
             trace!(
                 slog_scope::logger(),
                 "regular_step: prev: {} loc: {} -> src: {} dst: {}",
-                self.prev, self.loc, src, dst);
+                self.prev,
+                self.loc,
+                src,
+                dst
+            );
             self.prev = self.loc;
             self.loc = dst;
             return;
         }
     }
-    fn step(&mut self, paths: &mut Vec<WalkPath>) {
-        trace!(slog_scope::logger(), "step: prev: {}, loc: {}", self.prev, self.loc);
+    fn step(&mut self, branches: &mut Vec<ScaffoldWalker<'a>>) {
+        trace!(
+            slog_scope::logger(),
+            "step: prev: {}, loc: {}",
+            self.prev,
+            self.loc
+        );
         if let Some(intersect) = self.intersections.get(&self.loc).cloned() {
             let d = self.prev - self.loc;
             let incoming = Direction::from_delta(d).unwrap();
-            trace!(slog_scope::logger(), "we are at an intersection {:?}, entered from: {:?}", intersect, incoming);
+            trace!(
+                slog_scope::logger(),
+                "we are at an intersection {:?}, entered from: {:?}",
+                intersect,
+                incoming
+            );
             match intersect {
                 Intersection::Unvisited => {
                     // This walker will be replaced by three children
-                    self.branch(incoming, paths);
+                    self.branch(incoming, branches);
                     return;
                 }
-                Intersection::Entered{ first_approach, first_departure } => {
+                Intersection::Entered {
+                    first_approach,
+                    first_departure,
+                } => {
                     trace!(
                         slog_scope::logger(),
                         "first entrance: {:?}, first exit: {:?}, current entrance: {:?}",
@@ -175,8 +245,12 @@ impl<'a> ScaffoldWalker<'a> {
                         first_departure,
                         incoming,
                     );
-                    if let Some(outgoing) = incoming.last_direction(first_approach, first_departure) {
-                        let new_state = Intersection::Completed{ first_departure, second_departure: outgoing};
+                    if let Some(outgoing) = incoming.last_direction(first_approach, first_departure)
+                    {
+                        let new_state = Intersection::Completed {
+                            first_departure,
+                            second_departure: outgoing,
+                        };
                         self.intersections.insert(self.loc, new_state);
                         self.prev = self.loc;
                         self.loc = new_state.adjust(self.loc);
@@ -185,27 +259,22 @@ impl<'a> ScaffoldWalker<'a> {
                         return;
                     }
                 }
-                Intersection::Completed{..} => {
-                    return
-                }
+                Intersection::Completed { .. } => return,
             };
         } else {
             self.path_step();
         }
         trace!(slog_scope::logger(), "walk: {}", self.loc);
     }
-    fn walk(mut self, paths: &mut Vec<WalkPath>) {
+    fn walk(mut self, branches: &mut Vec<ScaffoldWalker<'a>>) -> Option<WalkPath> {
         let mut save = Point::new(-1, -1);
         while self.loc != save {
             save = self.loc;
-            self.step(paths)
+            self.step(branches)
         }
-        if let Some(p) = self.complete(){
-            paths.push(p)
-        }
+        self.complete()
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Direction {
@@ -231,7 +300,7 @@ impl Direction {
             '>' => Direction::East,
             'v' => Direction::South,
             '<' => Direction::West,
-            _ => unreachable!("unknown direction char: {:?}", c)
+            _ => unreachable!("unknown direction char: {:?}", c),
         }
     }
     fn adjust(&self, p: Point) -> Point {
@@ -240,7 +309,8 @@ impl Direction {
             Direction::East => (p.x + 1, p.y),
             Direction::South => (p.x, p.y + 1),
             Direction::West => (p.x - 1, p.y),
-        }.into()
+        }
+        .into()
     }
     fn rose() -> [Direction; 4] {
         [
@@ -258,10 +328,7 @@ impl Direction {
 }
 
 fn adjacent_points(p: Point) -> Vec<Point> {
-    Direction::rose()
-        .iter()
-        .map(|d| d.adjust(p))
-        .collect()
+    Direction::rose().iter().map(|d| d.adjust(p)).collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -276,11 +343,10 @@ impl Tile {
             35 => Some(Tile::Scaffold),
             46 => Some(Tile::Void),
             10 => None,
-            _ => unreachable!("unknown char: {} = {:?}", c, c as char)
+            _ => unreachable!("unknown char: {} = {:?}", c, c as char),
         }
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 struct Map {
@@ -310,11 +376,21 @@ impl Map {
             g.add_node(s);
             for adj_p in adjacent_points(s) {
                 if self.is_scaffold(adj_p) {
-                    trace!(slog_scope::logger(), "graph: check adj {} -> {} (true)", s, adj_p);
+                    trace!(
+                        slog_scope::logger(),
+                        "graph: check adj {} -> {} (true)",
+                        s,
+                        adj_p
+                    );
                     g.add_node(adj_p);
                     g.add_edge(s, adj_p, ());
                 } else {
-                    trace!(slog_scope::logger(), "graph: check adj {} -> {} (false)", s, adj_p);
+                    trace!(
+                        slog_scope::logger(),
+                        "graph: check adj {} -> {} (false)",
+                        s,
+                        adj_p
+                    );
                 }
             }
         }
@@ -325,9 +401,7 @@ impl Map {
             .filter(|p| {
                 let paths = adjacent_points(*p)
                     .iter()
-                    .filter(|adj| {
-                        self.is_scaffold(**adj)
-                    })
+                    .filter(|adj| self.is_scaffold(**adj))
                     .count();
                 paths >= 3
             })
@@ -343,8 +417,7 @@ impl Map {
     }
     #[inline]
     fn point_on_board(&self, p: Point) -> bool {
-        p.x >= 0 && p.x < self.width()
-            && p.y >= 0 && p.y < self.height()
+        p.x >= 0 && p.x < self.width() && p.y >= 0 && p.y < self.height()
     }
     #[inline]
     fn get_tile(&self, p: Point) -> Tile {
@@ -354,18 +427,15 @@ impl Map {
     fn is_scaffold(&self, p: Point) -> bool {
         self.point_on_board(p) && self.get_tile(p) == Tile::Scaffold
     }
-    fn scaffold(&self) -> impl Iterator<Item=Point> + '_ {
+    fn scaffold(&self) -> impl Iterator<Item = Point> + '_ {
         let w = self.width;
-        self.data
-            .iter()
-            .enumerate()
-            .filter_map(move |(idx, t)| {
-                if *t == Tile::Scaffold {
-                    Some(index_to_point(w, idx))
-                } else {
-                    None
-                }
-            })
+        self.data.iter().enumerate().filter_map(move |(idx, t)| {
+            if *t == Tile::Scaffold {
+                Some(index_to_point(w, idx))
+            } else {
+                None
+            }
+        })
     }
     fn from_render(data: &[i64]) -> Result<(Map, Robot)> {
         let mut inner = vec![];
@@ -429,5 +499,3 @@ mod test {
         //assert_eq!(part2(DAY17_INPUT).unwrap().as_str(), "0")
     }
 }
-
-
