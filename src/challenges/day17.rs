@@ -2,15 +2,6 @@ use crate::{display::Point, intcode::run_intcode, util::parse_intcode};
 use anyhow::{anyhow as ah, Result};
 use std::{collections::HashMap, fmt};
 
-type Graph = petgraph::graphmap::DiGraphMap<Point, Vec<Direction>>;
-type CGraph = petgraph::graphmap::DiGraphMap<CNode, PathInstructions>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum CNode {
-    Edge(Point),
-    Intersection(Point),
-}
-
 #[derive(Clone)]
 struct PathInstructions {
     src: Point,
@@ -95,35 +86,23 @@ pub fn part2_map(input: &str) -> Result<String> {
     Ok(format!("{}", out[0]))
 }
 
-fn print_graph(g: &Graph) {
-    let dot = petgraph::dot::Dot::new(g);
-    println!("{:?}", dot);
-}
-
 fn program_walk(map_data: &[i64]) -> Result<()> {
     let (m, r) = Map::from_render(map_data)?;
 
     let chunk_map = m.to_chunk_graph()?;
     trace!(slog_scope::logger(), "chunks: {:#?}", chunk_map);
 
-    // if fal {
-    //     trace!(slog_scope::logger(), "graph: {:#?}", g);
-    //     for n in g.nodes() {
-    //         print!("{}: ", n);
-    //         for (src, dst, _) in g.edges(n) {
-    //             print!("[{}->{}], ", src, dst);
-    //         }
-    //         println!("");
-    //     }
-    // }
-
     let paths = ScaffoldSearcher::new(&m, &chunk_map, r.loc)
         .map(|p| {
             debug!(slog_scope::logger(), "{}", PrintablePath(p.as_slice()));
-            p
+            let instr = Instruction::sequence(r.orientation, p.as_slice());
+            debug!(slog_scope::logger(), "{}", PrintableInstructions(instr.as_slice()));
+            let instr = compact_instructions(instr.as_slice());
+            debug!(slog_scope::logger(), "{}", PrintableInstructions(instr.as_slice()));
+            instr
         })
-        .collect::<Vec<Vec<Direction>>>();
-    debug!(slog_scope::logger(), "found {} paths", paths.len());
+        .count();
+    debug!(slog_scope::logger(), "found {} paths", paths);
     Ok(())
 }
 
@@ -236,11 +215,9 @@ struct ScaffoldWalker<'a> {
     graph: &'a ChunkMap,
 }
 
-type WalkPath = HashMap<Point, (Direction, Direction)>;
-
 impl<'a> ScaffoldWalker<'a> {
     fn complete(self) -> Option<Vec<Direction>> {
-        let is_complete = self.intersections.into_iter().all(|(p, i)| {
+        let is_complete = self.intersections.into_iter().all(|(_, i)| {
             if let Intersection::Completed = i {
                 true
             } else {
@@ -266,7 +243,7 @@ impl<'a> ScaffoldWalker<'a> {
             graph,
         }
     }
-    fn walk(mut self, branches: &mut Vec<ScaffoldWalker<'a>>) -> Option<Vec<Direction>> {
+    fn walk(self, branches: &mut Vec<ScaffoldWalker<'a>>) -> Option<Vec<Direction>> {
         let mut branched = false;
         for path in self.graph.paths(self.loc) {
             if let Some(sub_walker) = self.child_from_path(path) {
@@ -370,15 +347,6 @@ impl fmt::Display for Direction {
 }
 
 impl Direction {
-    fn from_delta(p: Point) -> Option<Direction> {
-        match (p.x, p.y) {
-            (0, -1) => Some(Direction::North),
-            (1, 0) => Some(Direction::East),
-            (0, 1) => Some(Direction::South),
-            (-1, 0) => Some(Direction::West),
-            _ => None,
-        }
-    }
     fn from_carrot(c: char) -> Direction {
         match c {
             '^' => Direction::North,
@@ -386,6 +354,19 @@ impl Direction {
             'v' => Direction::South,
             '<' => Direction::West,
             _ => unreachable!("unknown direction char: {:?}", c),
+        }
+    }
+    fn turn(&self, desired: Direction) -> Instruction {
+        let zero = Point::new(0,0);
+        let src = self.adjust(zero);
+        let dst = desired.adjust(zero);
+        let cross = src.x * dst.y - src.y * dst.x;
+        if cross > 0 {
+            return Instruction::Right
+        } else if cross < 0 {
+            return Instruction::Left
+        } else {
+            panic!("this is not a turn")
         }
     }
     fn adjust(&self, p: Point) -> Point {
@@ -404,11 +385,6 @@ impl Direction {
             Direction::South,
             Direction::West,
         ]
-    }
-    fn last_direction(self, d1: Direction, d2: Direction) -> Option<Direction> {
-        let p = Point::new(0, 0);
-        let off = d2.adjust(d1.adjust(self.adjust(p)));
-        Direction::from_delta(p - off)
     }
     fn reverse(self) -> Direction {
         match self {
@@ -431,17 +407,6 @@ fn adjacent_points(p: Point) -> Vec<(Direction, Point)> {
 enum Tile {
     Void,
     Scaffold,
-}
-
-impl Tile {
-    fn from_ascii(c: u8) -> Option<Tile> {
-        match c {
-            35 => Some(Tile::Scaffold),
-            46 => Some(Tile::Void),
-            10 => None,
-            _ => unreachable!("unknown char: {} = {:?}", c, c as char),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -569,19 +534,6 @@ impl ChunkMapBuilder {
 }
 
 impl Map {
-    fn to_graph(&self) -> Graph {
-        let mut g = Graph::new();
-        for s in self.scaffold() {
-            g.add_node(s);
-            for (d, adj_p) in adjacent_points(s) {
-                if self.is_scaffold(adj_p) {
-                    g.add_node(adj_p);
-                    g.add_edge(s, adj_p, vec![d]);
-                }
-            }
-        }
-        g
-    }
     fn to_chunk_graph(&self) -> Result<ChunkMap> {
         let mut chunks = ChunkMapBuilder {
             intersections: self
@@ -711,6 +663,83 @@ impl Map {
 struct Robot {
     orientation: Direction,
     loc: Point,
+}
+
+enum Instruction {
+    Right,
+    Left,
+    Forward(u32),
+}
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Instruction::Right => write!(f, "R"),
+            Instruction::Left => write!(f, "L"),
+            Instruction::Forward(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+struct PrintableInstructions<'a>(&'a [Instruction]);
+
+impl<'a> fmt::Display for PrintableInstructions<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in self.0 {
+            write!(f, "{}", i)?
+        }
+        Ok(())
+    }
+}
+
+impl<'a> fmt::Debug for PrintableInstructions<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+
+    }
+}
+
+impl Instruction {
+    fn sequence(orientation: Direction, directions: &[Direction]) -> Vec<Instruction> {
+        let mut o = orientation;
+        let mut cmd = Vec::with_capacity(directions.len());
+        for d in directions {
+            if o != *d {
+                cmd.push(o.turn(*d));
+                o = *d;
+            }
+            cmd.push(Instruction::Forward(1))
+        }
+        cmd
+    }
+}
+fn compact_instructions(instr: &[Instruction]) -> Vec<Instruction> {
+    let mut cmd = Vec::new();
+    let mut run = 0;
+    for i in instr {
+        match i {
+            Instruction::Right => {
+                if run > 0 {
+                    cmd.push(Instruction::Forward(run));
+                    run = 0;
+                }
+                cmd.push(Instruction::Right)
+            }
+            Instruction::Left => {
+                if run > 0 {
+                    cmd.push(Instruction::Forward(run));
+                    run = 0;
+                }
+                cmd.push(Instruction::Left);
+            }
+            Instruction::Forward(n) => {
+                run += n;
+            }
+        }
+    }
+    if run > 0 {
+        cmd.push(Instruction::Forward(run));
+    }
+    cmd
 }
 
 #[cfg(test)]
