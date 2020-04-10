@@ -1,20 +1,54 @@
-use crate::challenges::day17::Tile::Scaffold;
-use crate::display::Point;
-use crate::intcode::run_intcode;
-use crate::util::parse_intcode;
+use crate::{display::Point, intcode::run_intcode, util::parse_intcode};
 use anyhow::{anyhow as ah, Result};
-use petgraph::visit::IntoEdges;
-use std::collections::HashMap;
-use std::sync::mpsc::RecvTimeoutError::Timeout;
+use std::{collections::HashMap, fmt};
 
-type Graph = petgraph::graphmap::UnGraphMap<Point, ()>;
+type Graph = petgraph::graphmap::DiGraphMap<Point, Vec<Direction>>;
+type CGraph = petgraph::graphmap::DiGraphMap<CNode, PathInstructions>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum CNode {
+    Edge(Point),
+    Intersection(Point),
+}
+
+#[derive(Clone)]
+struct PathInstructions {
+    src: Point,
+    dst: Point,
+    path: Vec<Direction>,
+}
+
+impl PathInstructions {
+    fn reverse(&self) -> PathInstructions {
+        PathInstructions {
+            src: self.dst,
+            dst: self.src,
+            path: self.path.iter().rev().map(|d| d.reverse()).collect(),
+        }
+    }
+}
+
+impl fmt::Display for PathInstructions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for d in &self.path {
+            write!(f, "{}", d)?
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for PathInstructions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} -> {}", self, self.dst)
+    }
+}
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let (_, out) = run_intcode(intcode, vec![])?;
-    let (m, r) = Map::from_render(out.as_slice())?;
+    let (m, _) = Map::from_render(out.as_slice())?;
     //trace!(slog_scope::logger(), "m: {:?}, r: {:#?}", m, r);
-    let intersections = m.intersections();
+    let intersections = m.intersections().collect::<Vec<_>>();
     trace!(slog_scope::logger(), "intersections: {:#?}", intersections);
 
     let s = String::from_utf8(out.iter().map(|x| *x as u8).collect::<Vec<_>>())?;
@@ -46,11 +80,23 @@ pub fn part2_map(input: &str) -> Result<String> {
     Ok(format!("{}", out[0]))
 }
 
+fn print_graph(g: &Graph) {
+    let dot = petgraph::dot::Dot::new(g);
+    println!("{:?}", dot);
+}
+
 fn program_walk(map_data: &[i64]) -> Result<()> {
     let (m, r) = Map::from_render(map_data)?;
-    let intersections = m.intersections();
+
+    let chunk_map = m.to_chunk_graph()?;
+    trace!(slog_scope::logger(), "chunks: {:#?}", chunk_map);
+    return Err(ah!("e"));
+
+    let intersections = m.intersections().collect::<Vec<_>>();
     trace!(slog_scope::logger(), "intersections: {:#?}", intersections);
     let g = m.to_graph();
+    print_graph(&g);
+    return Err(ah!("e"));
     if true {
         trace!(slog_scope::logger(), "graph: {:#?}", g);
         for n in g.nodes() {
@@ -276,12 +322,53 @@ impl<'a> ScaffoldWalker<'a> {
     }
 }
 
+const COMPASS_SIZE: usize = 4;
+const COMPASS_ROSE: [Direction; COMPASS_SIZE] = [
+    Direction::North,
+    Direction::East,
+    Direction::South,
+    Direction::West,
+];
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Direction {
     North,
     East,
     South,
     West,
+}
+
+impl From<usize> for Direction {
+    fn from(x: usize) -> Self {
+        match x % COMPASS_SIZE {
+            0 => Direction::North,
+            1 => Direction::East,
+            2 => Direction::South,
+            3 => Direction::West,
+            _ => unreachable!(),
+        }
+    }
+}
+impl From<Direction> for usize {
+    fn from(x: Direction) -> Self {
+        match x {
+            Direction::North => 0,
+            Direction::East => 1,
+            Direction::South => 2,
+            Direction::West => 3,
+        }
+    }
+}
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Direction::North => write!(f, "N"),
+            Direction::East => write!(f, "E"),
+            Direction::South => write!(f, "S"),
+            Direction::West => write!(f, "W"),
+        }
+    }
 }
 
 impl Direction {
@@ -312,7 +399,7 @@ impl Direction {
         }
         .into()
     }
-    fn rose() -> [Direction; 4] {
+    fn rose() -> [Direction; COMPASS_SIZE] {
         [
             Direction::North,
             Direction::East,
@@ -325,10 +412,21 @@ impl Direction {
         let off = d2.adjust(d1.adjust(self.adjust(p)));
         Direction::from_delta(p - off)
     }
+    fn reverse(self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::East => Direction::West,
+            Direction::South => Direction::North,
+            Direction::West => Direction::East,
+        }
+    }
 }
 
-fn adjacent_points(p: Point) -> Vec<Point> {
-    Direction::rose().iter().map(|d| d.adjust(p)).collect()
+fn adjacent_points(p: Point) -> Vec<(Direction, Point)> {
+    Direction::rose()
+        .iter()
+        .map(|d| (*d, d.adjust(p)))
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -369,43 +467,127 @@ fn point_to_index(w: usize, p: Point) -> usize {
     y * w + x
 }
 
+struct ChunkMapBuilder {
+    intersections: HashMap<Point, [Option<PathInstructions>; COMPASS_SIZE]>,
+    tails: HashMap<Point, PathInstructions>,
+}
+#[derive(Debug)]
+struct ChunkMap {
+    intersections: HashMap<Point, [PathInstructions; COMPASS_SIZE]>,
+    tails: HashMap<Point, PathInstructions>,
+}
+
+fn finalize_intersection_paths(
+    mut input: [Option<PathInstructions>; COMPASS_SIZE],
+) -> Result<[PathInstructions; COMPASS_SIZE]> {
+    let err = || ah!("incomplete chunkmap");
+    Ok([
+        input[0].take().ok_or_else(err)?,
+        input[1].take().ok_or_else(err)?,
+        input[2].take().ok_or_else(err)?,
+        input[3].take().ok_or_else(err)?,
+    ])
+}
+
+impl ChunkMapBuilder {
+    fn add_path(&mut self, src: Point, heading: Direction, dst: Point, instr: PathInstructions) {
+        debug_assert!(instr.path.len() > 0);
+        let reverse = instr.reverse();
+        self.intersections.get_mut(&src).unwrap()[usize::from(heading)] = Some(instr);
+
+        let reverse_heading = reverse.path[0];
+        if let Some(intersection) = self.intersections.get_mut(&dst) {
+            intersection[usize::from(reverse_heading)] = Some(reverse);
+        } else {
+            self.tails.insert(dst, reverse);
+        }
+    }
+    fn get_path(&self, src: Point, heading: Direction) -> Option<&PathInstructions> {
+        self.intersections
+            .get(&src)
+            .and_then(|rose| rose[usize::from(heading)].as_ref())
+    }
+    fn finalize(self) -> Result<ChunkMap> {
+        Ok(ChunkMap {
+            intersections: self
+                .intersections
+                .into_iter()
+                .map(|(p, paths)| {
+                    finalize_intersection_paths(paths).map(|good_paths| (p, good_paths))
+                })
+                .collect::<Result<HashMap<Point, [PathInstructions; COMPASS_SIZE]>>>()?,
+            tails: self.tails,
+        })
+    }
+}
+
 impl Map {
     fn to_graph(&self) -> Graph {
         let mut g = Graph::new();
         for s in self.scaffold() {
             g.add_node(s);
-            for adj_p in adjacent_points(s) {
+            for (d, adj_p) in adjacent_points(s) {
                 if self.is_scaffold(adj_p) {
-                    trace!(
-                        slog_scope::logger(),
-                        "graph: check adj {} -> {} (true)",
-                        s,
-                        adj_p
-                    );
                     g.add_node(adj_p);
-                    g.add_edge(s, adj_p, ());
-                } else {
-                    trace!(
-                        slog_scope::logger(),
-                        "graph: check adj {} -> {} (false)",
-                        s,
-                        adj_p
-                    );
+                    g.add_edge(s, adj_p, vec![d]);
                 }
             }
         }
         g
     }
-    fn intersections(&self) -> Vec<Point> {
-        self.scaffold()
-            .filter(|p| {
-                let paths = adjacent_points(*p)
-                    .iter()
-                    .filter(|adj| self.is_scaffold(**adj))
-                    .count();
-                paths >= 3
-            })
-            .collect()
+    fn to_chunk_graph(&self) -> Result<ChunkMap> {
+        let mut chunks = ChunkMapBuilder {
+            intersections: self
+                .intersections()
+                .map(|p| {
+                    let builder = [None, None, None, None];
+                    (p, builder)
+                })
+                .collect(),
+            tails: HashMap::new(),
+        };
+
+        for (p, d) in self
+            .intersections()
+            .flat_map(|p| COMPASS_ROSE.iter().map(move |d| (p, *d)))
+        {
+            if chunks.get_path(p, d).is_some() {
+                continue;
+            }
+            let mut path = vec![d];
+            let mut current = d.adjust(p);
+            let mut last_step = d;
+            'walk: loop {
+                let neighbors = adjacent_points(current)
+                    .into_iter()
+                    .filter(|(step_d, p)| *step_d != last_step.reverse() && self.is_scaffold(*p))
+                    .collect::<Vec<(Direction, Point)>>();
+                if neighbors.len() != 1 {
+                    break 'walk;
+                }
+                let (step_d, new_loc) = neighbors[0];
+                path.push(step_d);
+                last_step = step_d;
+                current = new_loc;
+            }
+            let mut instr = PathInstructions {
+                src: p,
+                dst: current,
+                path: Vec::new(),
+            };
+            std::mem::swap(&mut path, &mut instr.path);
+            chunks.add_path(p, d, current, instr);
+        }
+        chunks.finalize()
+    }
+    fn intersections(&self) -> impl Iterator<Item = Point> + '_ {
+        self.scaffold().filter(move |p| {
+            let paths = adjacent_points(*p)
+                .iter()
+                .filter(|(_, adj)| self.is_scaffold(*adj))
+                .count();
+            paths >= 3
+        })
     }
     #[inline]
     fn width(&self) -> i32 {
