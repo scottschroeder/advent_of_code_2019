@@ -1,8 +1,12 @@
 use crate::{display::Point, intcode::run_intcode, util::parse_intcode};
 use anyhow::{anyhow as ah, Result};
+use itertools::Itertools;
+use sequence_extractor::{divide3, SubSeq3};
 use std::{collections::HashMap, fmt};
 
 mod sequence_extractor;
+
+const MAX_SEQ_LEN: usize = 20;
 
 #[derive(Clone)]
 struct PathInstructions {
@@ -28,6 +32,38 @@ impl PathInstructions {
 }
 
 struct PrintablePath<'a>(&'a [Direction]);
+struct PrintableSeq<'a, T>(&'a [T]);
+struct PrintableSeparated<'a, T>(&'a [T]);
+
+impl<'a, T: fmt::Display> fmt::Display for PrintableSeparated<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (idx, d) in self.0.iter().enumerate() {
+            if idx != 0 {
+                write!(f, ",")?
+            }
+            write!(f, "{}", d)?
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T: fmt::Display> fmt::Display for PrintableSeq<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for d in self.0 {
+            write!(f, "{}", d)?
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T: fmt::Display> fmt::Debug for PrintableSeq<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for d in self.0 {
+            write!(f, "{}", d)?
+        }
+        Ok(())
+    }
+}
 
 impl<'a> fmt::Display for PrintablePath<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,6 +87,12 @@ impl fmt::Debug for PathInstructions {
     }
 }
 
+fn intcode_to_string(intcode: &[i64]) -> Result<String> {
+    Ok(String::from_utf8(
+        intcode.iter().map(|x| *x as u8).collect::<Vec<_>>(),
+    )?)
+}
+
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let (_, out) = run_intcode(intcode, vec![])?;
@@ -59,7 +101,7 @@ pub fn part1(input: &str) -> Result<String> {
     let intersections = m.intersections().collect::<Vec<_>>();
     trace!(slog_scope::logger(), "intersections: {:#?}", intersections);
 
-    let s = String::from_utf8(out.iter().map(|x| *x as u8).collect::<Vec<_>>())?;
+    let s = intcode_to_string(out.as_slice())?;
     trace!(slog_scope::logger(), "map:\n{}", s);
 
     Ok(format!(
@@ -69,11 +111,24 @@ pub fn part1(input: &str) -> Result<String> {
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    let intcode = parse_intcode(input)?;
-    let (_, out) = run_intcode(intcode, vec![2])?;
-    program_walk(out.as_slice())?;
+    let mut intcode = parse_intcode(input)?;
+    let (_, out) = run_intcode(intcode.clone(), vec![2])?;
+    let program = program_walk(out.as_slice(), 16017)?;
+    debug!(slog_scope::logger(), "input:\n{}", program.to_ascii());
 
-    Ok(format!("{}", out[0]))
+    // Wake up cmd
+    intcode[0] = 2;
+    let mut program_ascii = program
+        .to_ascii()
+        .as_bytes()
+        .iter()
+        .map(|b| *b as i64)
+        .collect::<Vec<_>>();
+    // do not output feed
+    program_ascii.extend("n\n".as_bytes().iter().map(|b| *b as i64));
+    let (_, out_score) = run_intcode(intcode, program_ascii)?;
+    let score = out_score[out_score.len() - 1];
+    Ok(format!("{}", score))
 }
 
 // Take a map directly as input
@@ -83,29 +138,81 @@ pub fn part2_map(input: &str) -> Result<String> {
         .iter()
         .map(|x| *x as i64)
         .collect::<Vec<_>>();
-    program_walk(out.as_slice())?;
+    program_walk(out.as_slice(), 0)?;
 
     Ok(format!("{}", out[0]))
 }
 
-fn program_walk(map_data: &[i64]) -> Result<()> {
+fn program_walk(map_data: &[i64], cheat: usize) -> Result<RobotProgram> {
     let (m, r) = Map::from_render(map_data)?;
 
     let chunk_map = m.to_chunk_graph()?;
     trace!(slog_scope::logger(), "chunks: {:#?}", chunk_map);
 
-    let paths = ScaffoldSearcher::new(&m, &chunk_map, r.loc)
+    let mut trial = 0;
+    let program = ScaffoldSearcher::new(&m, &chunk_map, r.loc)
+        .skip(cheat)
         .map(|p| {
-            debug!(slog_scope::logger(), "{}", PrintablePath(p.as_slice()));
             let instr = Instruction::sequence(r.orientation, p.as_slice());
-            debug!(slog_scope::logger(), "{}", PrintableInstructions(instr.as_slice()));
-            let instr = compact_instructions(instr.as_slice());
-            debug!(slog_scope::logger(), "{}", PrintableInstructions(instr.as_slice()));
-            instr
+            let cmpt = compact_instructions(instr.as_slice());
+            trial += 1;
+            debug!(
+                slog_scope::logger(),
+                "path({}): {}",
+                trial,
+                PrintableSeq(cmpt.as_slice())
+            );
+            cmpt
         })
-        .count();
-    debug!(slog_scope::logger(), "found {} paths", paths);
-    Ok(())
+        .filter_map(|cmpct| {
+            let max_cmpt_seq_len = MAX_SEQ_LEN >> 1;
+            divide3(cmpct.as_slice(), max_cmpt_seq_len).and_then(move |(instr, d3)| {
+                if instr.len() < MAX_SEQ_LEN {
+                    Some(RobotProgram {
+                        a: InstructionExpander::new(d3.a.into_iter()).collect(),
+                        b: InstructionExpander::new(d3.b.into_iter()).collect(),
+                        c: InstructionExpander::new(d3.c.into_iter()).collect(),
+                        main: instr,
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .nth(0)
+        .ok_or_else(|| ah!("could not find suitable program"))?;
+    info!(slog_scope::logger(), "program: {:#?}", program);
+    Ok(program)
+}
+
+struct RobotProgram {
+    a: Vec<Instruction>,
+    b: Vec<Instruction>,
+    c: Vec<Instruction>,
+    main: Vec<SubSeq3>,
+}
+
+impl RobotProgram {
+    fn to_ascii(&self) -> String {
+        format!(
+            "{}\n{}\n{}\n{}\n",
+            PrintableSeparated(self.main.as_slice()),
+            PrintableSeparated(self.a.as_slice()),
+            PrintableSeparated(self.b.as_slice()),
+            PrintableSeparated(self.c.as_slice()),
+        )
+    }
+}
+
+impl fmt::Debug for RobotProgram {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RobotProgram")
+            .field("a", &PrintableSeq(self.a.as_slice()))
+            .field("b", &PrintableSeq(self.b.as_slice()))
+            .field("c", &PrintableSeq(self.c.as_slice()))
+            .field("main", &PrintableSeq(self.main.as_slice()))
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -183,6 +290,7 @@ impl Intersection {
     }
 }
 
+#[derive(Clone)]
 struct ScaffoldSearcher<'a> {
     stack: Vec<ScaffoldWalker<'a>>,
 }
@@ -250,35 +358,21 @@ impl<'a> ScaffoldWalker<'a> {
         for path in self.graph.paths(self.loc) {
             if let Some(sub_walker) = self.child_from_path(path) {
                 branched = true;
-                trace!(slog_scope::logger(), "push");
                 branches.push(sub_walker)
             }
         }
         if !branched {
-            trace!(
-                slog_scope::logger(),
-                "check complete: {}",
-                PrintablePath(self.path.as_slice())
-            );
             self.complete()
         } else {
             None
         }
     }
     fn child_from_path(&self, path: &PathInstructions) -> Option<ScaffoldWalker<'a>> {
-        trace!(
-            slog_scope::logger(),
-            "{} -> {:?} ({})",
-            self.loc,
-            path,
-            PrintablePath(self.path.as_slice())
-        );
         let mut sub_walker = self.clone();
         if let Some(src) = sub_walker.intersections.get_mut(&path.src) {
             match src.departed(path.outgoing()) {
                 Ok(Some(intersect)) => *src = intersect,
                 x => {
-                    trace!(slog_scope::logger(), "Could not depart {:?}: {:?}", src, x);
                     return None;
                 }
             }
@@ -287,7 +381,6 @@ impl<'a> ScaffoldWalker<'a> {
             match dst.arrived(path.incoming().reverse()) {
                 Ok(Some(intersect)) => *dst = intersect,
                 x => {
-                    trace!(slog_scope::logger(), "Could not arrive {:?}: {:?}", dst, x);
                     return None;
                 }
             }
@@ -358,15 +451,15 @@ impl Direction {
             _ => unreachable!("unknown direction char: {:?}", c),
         }
     }
-    fn turn(&self, desired: Direction) -> Instruction {
-        let zero = Point::new(0,0);
+    fn turn(&self, desired: Direction) -> Rotate {
+        let zero = Point::new(0, 0);
         let src = self.adjust(zero);
         let dst = desired.adjust(zero);
         let cross = src.x * dst.y - src.y * dst.x;
         if cross > 0 {
-            return Instruction::Right
+            return Rotate::Right;
         } else if cross < 0 {
-            return Instruction::Left
+            return Rotate::Left;
         } else {
             panic!("this is not a turn")
         }
@@ -667,17 +760,68 @@ struct Robot {
     loc: Point,
 }
 
-enum Instruction {
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Rotate {
     Right,
     Left,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Instruction {
+    Rotate(Rotate),
     Forward(u32),
 }
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CompactInstruction {
+    rotate: Rotate,
+    step: u32,
+}
+
+impl fmt::Display for CompactInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.rotate, self.step)
+    }
+}
+
+struct InstructionExpander<I> {
+    iter: I,
+    step: Option<u32>,
+}
+
+impl<'a, I: IntoIterator<Item = &'a CompactInstruction>> InstructionExpander<I> {
+    fn new(iter: I) -> InstructionExpander<I> {
+        InstructionExpander { iter, step: None }
+    }
+}
+
+impl<'a, I: Iterator<Item = &'a CompactInstruction>> Iterator for InstructionExpander<I> {
+    type Item = Instruction;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(n) = self.step.take() {
+            return Some(Instruction::Forward(n));
+        }
+        return self.iter.next().map(|ci| {
+            let i = Instruction::Rotate(ci.rotate);
+            self.step = Some(ci.step);
+            i
+        });
+    }
+}
+
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Instruction::Right => write!(f, "R"),
-            Instruction::Left => write!(f, "L"),
+            Instruction::Rotate(r) => write!(f, "{}", r),
             Instruction::Forward(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+impl fmt::Display for Rotate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Rotate::Right => write!(f, "R"),
+            Rotate::Left => write!(f, "L"),
         }
     }
 }
@@ -696,7 +840,6 @@ impl<'a> fmt::Display for PrintableInstructions<'a> {
 impl<'a> fmt::Debug for PrintableInstructions<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
-
     }
 }
 
@@ -706,7 +849,7 @@ impl Instruction {
         let mut cmd = Vec::with_capacity(directions.len());
         for d in directions {
             if o != *d {
-                cmd.push(o.turn(*d));
+                cmd.push(Instruction::Rotate(o.turn(*d)));
                 o = *d;
             }
             cmd.push(Instruction::Forward(1))
@@ -714,32 +857,33 @@ impl Instruction {
         cmd
     }
 }
-fn compact_instructions(instr: &[Instruction]) -> Vec<Instruction> {
+fn compact_instructions(instr: &[Instruction]) -> Vec<CompactInstruction> {
     let mut cmd = Vec::new();
+    let mut dir = None;
     let mut run = 0;
+
     for i in instr {
         match i {
-            Instruction::Right => {
-                if run > 0 {
-                    cmd.push(Instruction::Forward(run));
+            Instruction::Rotate(r) => {
+                if let Some(last_r) = dir.take() {
+                    cmd.push(CompactInstruction {
+                        rotate: last_r,
+                        step: run,
+                    });
                     run = 0;
                 }
-                cmd.push(Instruction::Right)
-            }
-            Instruction::Left => {
-                if run > 0 {
-                    cmd.push(Instruction::Forward(run));
-                    run = 0;
-                }
-                cmd.push(Instruction::Left);
+                dir = Some(*r);
             }
             Instruction::Forward(n) => {
                 run += n;
             }
         }
     }
-    if run > 0 {
-        cmd.push(Instruction::Forward(run));
+    if let Some(last_r) = dir.take() {
+        cmd.push(CompactInstruction {
+            rotate: last_r,
+            step: run,
+        });
     }
     cmd
 }
@@ -756,6 +900,6 @@ mod test {
 
     #[test]
     fn day17part2() {
-        //assert_eq!(part2(DAY17_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY17_INPUT).unwrap().as_str(), "597517")
     }
 }

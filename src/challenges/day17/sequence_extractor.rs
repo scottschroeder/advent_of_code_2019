@@ -1,68 +1,179 @@
 use blackout::BlackoutSeq;
-// fn divide3<T, U>(seq: U) -> Divide3<T>
-// where
-//     T: PartialEq,
-//     U: AsRef<[T]>,
-// {
-//     Divide3 {
-//         a: vec![],
-//         b: vec![],
-//         c: vec![],
-//         master: vec![],
-//     }
-// }
+use std::fmt;
+pub fn divide3<T: PartialEq>(
+    seq: &[T],
+    max_segment: usize,
+) -> Option<(Vec<SubSeq3>, Divide3<'_, T>)> {
+    search3(seq, max_segment).map(|d3| {
+        let assign = assign_substrings(seq, &d3);
+        (assign, d3)
+    })
+}
 
-enum SubSeq3 {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SubSeq3 {
     A,
     B,
     C,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct Divide3<'a, T> {
-    a: &'a [T],
-    b: &'a [T],
-    c: &'a [T],
-    //master: Vec<SubSeq3>,
+impl fmt::Display for SubSeq3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SubSeq3::A => write!(f, "A"),
+            SubSeq3::B => write!(f, "B"),
+            SubSeq3::C => write!(f, "C"),
+        }
+    }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Divide3<'a, T> {
+    pub a: &'a [T],
+    pub b: &'a [T],
+    pub c: &'a [T],
+}
 
-fn divide_segments<T: PartialEq>(data: &[T], start: usize, end: usize) -> Option<Divide3<'_, T>> {
-    if start + end > data.len() {
-        return None;
+fn assign_substrings<T: PartialEq>(data: &[T], seq: &Divide3<'_, T>) -> Vec<SubSeq3> {
+    let mut idx = 0;
+    let mut assign = vec![];
+    while idx < data.len() {
+        if data[idx..].starts_with(seq.a) {
+            assign.push(SubSeq3::A);
+            idx += seq.a.len();
+        }
+        if data[idx..].starts_with(seq.b) {
+            assign.push(SubSeq3::B);
+            idx += seq.b.len();
+        }
+        if data[idx..].starts_with(seq.c) {
+            assign.push(SubSeq3::C);
+            idx += seq.c.len();
+        }
     }
-    let a = &data[..start];
-    let c_start = data.len() - end;
-    let c = &data[c_start..];
-    let mut blk = BlackoutSeq::new(data);
-    blk.blackout_seq(a);
-    blk.blackout_seq(c);
+    assign
+}
 
-    if let Some(b_longest) = blk.shortest() {
-        for b_len in 1..b_longest.len()+1 {
-            let mut b_test_blk = blk.clone();
-            let b = &b_longest[..b_len];
-            b_test_blk.blackout_seq(b);
-            if b_test_blk.iter().count() == 0 {
-                return Some(Divide3 { a, b, c })
+fn search3<T: PartialEq>(data: &[T], max_segment: usize) -> Option<Divide3<'_, T>> {
+    let mut a_blk = BlackoutSeq::new(data);
+    let a_shortest = if let Some(a_shortest) = a_blk.shortest() {
+        a_shortest
+    } else {
+        return Some(Divide3 {
+            a: &[],
+            b: &[],
+            c: &[],
+        });
+    };
+    let a_max = std::cmp::min(a_shortest.len(), max_segment) + 1;
+    for a_len in (1..a_max).rev() {
+        let a = &a_shortest[..a_len];
+        let mut b_blk = a_blk.clone();
+        b_blk.blackout_seq(a);
+        let b_shortest = if let Some(b_shortest) = b_blk.shortest() {
+            b_shortest
+        } else {
+            return Some(Divide3 { a, b: &[], c: &[] });
+        };
+        let b_max = std::cmp::min(b_shortest.len(), max_segment) + 1;
+        for b_len in (1..b_max).rev() {
+            let b = &b_shortest[..b_len];
+            let mut c_blk = b_blk.clone();
+            c_blk.blackout_seq(b);
+            let c_shortest = if let Some(c_shortest) = c_blk.shortest() {
+                c_shortest
+            } else {
+                return Some(Divide3 { a, b, c: &[] });
+            };
+            let c_max = std::cmp::min(c_shortest.len(), max_segment) + 1;
+            for c_len in (1..c_max).rev() {
+                let c = &c_shortest[..c_len];
+                let mut t_blk = c_blk.clone();
+                t_blk.blackout_seq(c);
+                if t_blk.iter().count() == 0 {
+                    return Some(Divide3 { a, b, c });
+                }
             }
         }
-    } else {
-        return Some(Divide3 { a, b: &[], c })
     }
     None
 }
 
+// fn divide_segments<T: PartialEq>(data: &[T], start: usize, end: usize, max_segment: usize) -> Option<Divide3<'_, T>> {
+//     if start + end > data.len() {
+//         return None;
+//     }
+//     let a = &data[..start];
+//     let c_start = data.len() - end;
+//     let c = &data[c_start..];
+//     let mut blk = BlackoutSeq::new(data);
+//     blk.blackout_seq(a);
+//     blk.blackout_seq(c);
+
+//     if let Some(b_longest) = blk.shortest() {
+//         let b_max = std::cmp::min(b_longest.len()+1, max_segment);
+//         for b_len in 1..b_max {
+//             let mut b_test_blk = blk.clone();
+//             let b = &b_longest[..b_len];
+//             b_test_blk.blackout_seq(b);
+//             if b_test_blk.iter().count() == 0 {
+//                 return Some(Divide3 { a, b, c })
+//             }
+//         }
+//     } else {
+//         return Some(Divide3 { a, b: &[], c })
+//     }
+//     None
+// }
 
 #[cfg(test)]
 mod test {
     use super::*;
     #[test]
-    fn divide_segments_simple() {
-        let data = "lrlrabstart".as_bytes();
-        let d3 = divide_segments(data, 2, 5).unwrap();
-        assert_eq!(d3, Divide3{a: "lr".as_bytes(), b: "ab".as_bytes(), c: "start".as_bytes()})
+    fn search_segments() {
+        let data = "hello and world and hello".as_bytes();
+        let d3 = search3(data, 5).unwrap();
+        assert_eq!(
+            d3,
+            Divide3 {
+                a: "hello".as_bytes(),
+                b: " and ".as_bytes(),
+                c: "world".as_bytes()
+            }
+        )
     }
+    #[test]
+    fn search_two_segment() {
+        let data = "R8R8R4R4R8L6L2R4R4R8R8R8L6L2".as_bytes();
+        let d3 = search3(data, 6).unwrap();
+        assert_eq!(
+            d3,
+            Divide3 {
+                a: "R8R8".as_bytes(),
+                b: "R8L6L2".as_bytes(),
+                c: "R4R4".as_bytes(),
+            }
+        );
+
+        let seq = assign_substrings(data, &d3);
+        assert_eq!(
+            seq,
+            vec![
+                SubSeq3::A,
+                SubSeq3::C,
+                SubSeq3::B,
+                SubSeq3::C,
+                SubSeq3::A,
+                SubSeq3::B,
+            ]
+        )
+    }
+    // #[test]
+    // fn divide_segments_simple() {
+    //     let data = "lrlrabstart".as_bytes();
+    //     let d3 = divide_segments(data, 2, 5).unwrap();
+    //     assert_eq!(d3, Divide3{a: "lr".as_bytes(), b: "ab".as_bytes(), c: "start".as_bytes()})
+    // }
 }
 
 mod blackout {
@@ -105,7 +216,7 @@ mod blackout {
                 return None;
             }
             if self.needle.len() == 0 {
-                return None
+                return None;
             }
             if let Some(m) = find_first(self.needle, &self.haystack[self.start_idx..]) {
                 let loc = self.start_idx + m;
@@ -146,7 +257,7 @@ mod blackout {
             let mut start = 0;
             let mut update = |len, idx| {
                 if len == 0 {
-                    return
+                    return;
                 }
                 let min_len = size.get_or_insert(len);
                 if len <= *min_len {
@@ -162,7 +273,7 @@ mod blackout {
                 idx = b_start + b_len;
             }
             update(self.inner.len() - idx, idx);
-            size.map(|l|{&self.inner[start..start+l]})
+            size.map(|l| &self.inner[start..start + l])
         }
 
         fn blackout(&mut self, start: usize, len: usize) {
@@ -187,18 +298,15 @@ mod blackout {
 
     impl<'a, T: PartialEq> BlackoutSeq<'a, T> {
         pub fn blackout_seq(&mut self, seq: &[T]) {
-            let new_blackouts = self.iter()
-            .flat_map(|(idx, sub)| {
-                search(seq, sub).map(move|m| idx + m)
-            })
-            .collect::<Vec<usize>>();
+            let new_blackouts = self
+                .iter()
+                .flat_map(|(idx, sub)| search(seq, sub).map(move |m| idx + m))
+                .collect::<Vec<usize>>();
             for b in new_blackouts {
                 self.blackout(b, seq.len());
-
             }
         }
     }
-
 
     pub struct BlackoutScanner<'a, T> {
         inner: &'a BlackoutSeq<'a, T>,
@@ -341,7 +449,8 @@ mod blackout {
 
         #[test]
         fn search_two() {
-            let actual = search("foo".as_bytes(), "theres foobar and foobaz".as_bytes()).collect::<Vec<_>>();
+            let actual =
+                search("foo".as_bytes(), "theres foobar and foobaz".as_bytes()).collect::<Vec<_>>();
             assert_eq!(actual, vec![7, 18])
         }
         #[test]
@@ -351,12 +460,15 @@ mod blackout {
             b.blackout_seq("foo".as_bytes());
             b.blackout_seq("fizz".as_bytes());
             let actual = b.iter().map(|(_, s)| s).collect::<Vec<_>>();
-            assert_eq!(actual, vec![
-                "bar ".as_bytes(),
-                "baz ".as_bytes(),
-                "buzz and ".as_bytes(),
-                "le".as_bytes(),
-            ])
+            assert_eq!(
+                actual,
+                vec![
+                    "bar ".as_bytes(),
+                    "baz ".as_bytes(),
+                    "buzz and ".as_bytes(),
+                    "le".as_bytes(),
+                ]
+            )
         }
         #[test]
         fn blackout_shortest_start() {
