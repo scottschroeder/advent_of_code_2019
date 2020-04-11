@@ -2,6 +2,8 @@ use crate::{display::Point, intcode::run_intcode, util::parse_intcode};
 use anyhow::{anyhow as ah, Result};
 use std::{collections::HashMap, fmt};
 
+mod sequence_extractor;
+
 #[derive(Clone)]
 struct PathInstructions {
     src: Point,
