@@ -192,7 +192,7 @@ impl<T: fmt::Display, V: VerticalOrientation> fmt::Display for Image<T, V> {
     }
 }
 
-struct Frame {
+pub(crate) struct Frame {
     min_x: i32,
     max_x: i32,
     min_y: i32,
@@ -230,7 +230,7 @@ impl Frame {
     }
 }
 
-fn size_frame<'a, I, T: 'a, P>(iter: &'a I) -> Frame
+pub(crate) fn size_frame<'a, I, T: 'a, P>(iter: &'a I) -> Frame
 where
     &'a I: IntoIterator<Item = (&'a P, &'a T)>,
     P: 'a,

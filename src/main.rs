@@ -86,6 +86,7 @@ pub mod challenges {
             (17, 2) => day17::part2(&input)?,
             (17, 3) => day17::part2_map(&input)?,
             (18, 1) => day18::part1(&input)?,
+            (18, 2) => day18::part2(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
@@ -123,6 +124,11 @@ pub mod challenges {
         pub const DAY16_INPUT: &str = include_str!("../input/day16");
         pub const DAY17_INPUT: &str = include_str!("../input/day17");
         pub const DAY18_INPUT: &str = include_str!("../input/day18");
+        pub const DAY18_EX1: &str = include_str!("../input/day18_ex1");
+        pub const DAY18_EX2: &str = include_str!("../input/day18_ex2");
+        pub const DAY18_EX3: &str = include_str!("../input/day18_ex3");
+        pub const DAY18_EX4: &str = include_str!("../input/day18_ex4");
+        pub const DAY18_EX5: &str = include_str!("../input/day18_ex5");
     }
 }
 

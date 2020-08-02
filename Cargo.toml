@@ -7,10 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "2.33.0"
-anyhow = "1.0.26"
+clap = "2.33.1"
+anyhow = "1.0.32"
 
-petgraph = "0.5.0"
+petgraph = "0.5.1"
 fixedbitset = "0.2.0"
 itertools = "0.8.2"
 num = "0.2"
