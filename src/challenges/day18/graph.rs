@@ -5,42 +5,7 @@ use std::collections::HashMap;
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use std::ops::Add;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum PathCost {
-    Path(u32),
-    Block,
-}
-
-impl Default for PathCost {
-    fn default() -> Self {
-        PathCost::Path(0)
-    }
-}
-
-impl Add<PathCost> for PathCost {
-    type Output = PathCost;
-    fn add(self, rhs: PathCost) -> Self::Output {
-        match (self, rhs) {
-            (PathCost::Path(a), PathCost::Path(b)) => PathCost::Path(a + b),
-            _ => PathCost::Block,
-        }
-    }
-}
-impl PartialOrd for PathCost {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(match (self, other) {
-            // (None, None) => std::cmp::Ordering::Equal,
-            // (None, Some(_)) => std::cmp::Ordering::Greater,
-            // (Some(_), None) => std::cmp::Ordering::Less,
-            // (Some(a), Some(b)) => a.cmp(&b),
-            (PathCost::Block, PathCost::Block) => std::cmp::Ordering::Equal,
-            (PathCost::Block, PathCost::Path(_)) => std::cmp::Ordering::Greater,
-            (PathCost::Path(_), PathCost::Block) => std::cmp::Ordering::Less,
-            (PathCost::Path(a), PathCost::Path(b)) => a.cmp(b),
-        })
-    }
-}
+use traverse::{EdgeControl, dijkstra};
 
 trait ExploreQueue: Default {
     fn insert(&mut self, e: ExploreState);
@@ -113,6 +78,7 @@ pub(crate) struct CaveGraph {
     start: NodeIndex,
     map: Map,
     raw_to_nidx: Vec<NodeIndex>,
+    nidx_to_tile: Vec<Tile>,
 }
 
 impl CaveGraph {
@@ -155,13 +121,23 @@ impl CaveGraph {
         let mut node_idx = Vec::with_capacity(m.data.len());
         let mut g = StableGraph::default();
         let mut start = None;
+        let mut max_nidx = 0;
         for t in &m.data {
             let idx = g.add_node(*t);
+            max_nidx = std::cmp::max(max_nidx, idx.index());
             node_idx.push(idx);
             if *t == Tile::Start {
                 start = Some(idx);
             }
         }
+
+        let mut nidx_to_tile = vec![Tile::Space; max_nidx];
+        for nidx in 0..max_nidx {
+            if let Some(t) = g.node_weight(NodeIndex::new(nidx)) {
+                nidx_to_tile[nidx] = *t;
+            }
+        }
+
         {
             let mut add_edge = |src: usize, dst: usize, t: Tile| {
                 if t != Tile::Wall {
@@ -187,6 +163,7 @@ impl CaveGraph {
             map: m,
             start: start.expect("graph must have a start tile"),
             raw_to_nidx: node_idx,
+            nidx_to_tile,
         };
         cg.trim_walls();
         cg
@@ -221,6 +198,7 @@ impl CaveGraph {
 
         log::info!("Looking for all keys in {:?}", all_keys);
 
+        let mut stack = Vec::new();
         while let Some(explore) = queue.pop() {
             match seen_explore.entry(explore.cache_key()) {
                 std::collections::hash_map::Entry::Occupied(mut o) => {
@@ -243,25 +221,22 @@ impl CaveGraph {
             log::debug!("TOTAL: {} Current {:?}", queue.len(), explore);
             log::trace!("\n{}", self.explored_map(explore));
             let seen = explore.keys;
-            let mut stack = Vec::new();
 
-            let m = petgraph::algo::dijkstra(&self.inner, explore.pos, None, |e| {
-                let src = e.source();
+            stack.truncate(0);
+
+            let m = traverse::dijkstra(&self.inner, explore.pos, |e| {
                 let dst = e.target();
-                self.edge_cost(src, dst, seen, &mut stack)
+                self.edge_cost(dst, seen, &mut stack)
             });
+
             stack
-                .into_iter()
+                .iter()
                 .filter_map(|(n, k)| {
-                    let c = m.get(&n).cloned().unwrap_or(PathCost::Block);
-                    match c {
-                        PathCost::Path(c) => Some(ExploreState {
-                            pos: n,
-                            length: c + explore.length,
-                            keys: seen.insert(k),
-                        }),
-                        PathCost::Block => None,
-                    }
+                    m.get(&n).map(|c| ExploreState {
+                        pos: *n,
+                        length: c + explore.length,
+                        keys: seen.insert(*k),
+                    })
                 })
                 .filter(|e| {
                     if e.keys == all_keys {
@@ -287,66 +262,157 @@ impl CaveGraph {
         shortest_distance
     }
 
-    // pub(crate) fn dijkstra(&self, explore: ExploreState) -> u32 {
-    //     let log = slog_scope::logger();
-    //     let all_keys = self
-    //         .inner
-    //         .node_references()
-    //         .filter_map(|(_, t)| match t {
-    //             Tile::Key(k) => Some(*k),
-    //             _ => None,
-    //         })
-    //         .fold(KeySet::new(), |acc, k| acc.insert(k));
-
-    //     log::info!( "Looking for all keys in {:?}", all_keys);
-    //     let mut shortest_distance = None;
-
-    //     let mut queue = std::collections::BinaryHeap::new();
-    //     queue.push(std::cmp::Reverse(explore));
-    //     let mut seen_explore = HashMap::new();
-
-    //     log::info!( "Shortest Path {:?}", shortest_distance);
-    //     return shortest_distance.unwrap();
-    // }
-
     fn edge_cost(
         &self,
-        src: NodeIndex,
         dst: NodeIndex,
         seen: KeySet,
         stack: &mut Vec<(NodeIndex, Key)>,
-    ) -> PathCost {
-        let src_t = self.inner.node_weight(src).unwrap();
-        let dst_t = self.inner.node_weight(dst).unwrap();
-
-        // Walls, should never happen
-        if let Tile::Wall = src_t {
-            unreachable!("we can not start from inside a wall");
+    ) -> EdgeControl {
+        //let dst_t2 = self.inner.node_weight(dst).unwrap();
+        let dst_t = self.nidx_to_tile[dst.index()];
+        match dst_t {
+            Tile::Door(k) => {
+                if !seen.contains(k) {
+                    EdgeControl::Block
+                } else {
+                    EdgeControl::Continue(1)
+                }
+            }
+            Tile::Key(k) => {
+                if !seen.contains(k) {
+                    stack.push((dst, k));
+                    EdgeControl::Break(1)
+                } else {
+                    EdgeControl::Continue(1)
+                }
+            }
+            // Other things are unreachable
+            _ => EdgeControl::Continue(1),
         }
-        if let Tile::Wall = dst_t {
-            unreachable!("we can not end up inside a wall");
-        }
+    }
+}
 
-        // Don't move past a new key
-        if let Tile::Key(k) = src_t {
-            if !seen.contains(*k) {
-                return PathCost::Block;
+mod traverse {
+    use petgraph::visit::{EdgeRef, IntoEdges, VisitMap, Visitable};
+    use scored::MinScored;
+    use std::collections::hash_map::Entry::{Occupied, Vacant};
+    use std::collections::{BinaryHeap, HashMap};
+    use std::hash::Hash;
+
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub(crate) enum EdgeControl {
+        Continue(u32),
+        Break(u32),
+        Block,
+    }
+
+    pub(crate) fn dijkstra<G, F>(
+        graph: G,
+        start: G::NodeId,
+        mut edge_cost: F,
+    ) -> HashMap<G::NodeId, u32>
+    where
+        G: IntoEdges + Visitable,
+        G::NodeId: Eq + Hash,
+        F: FnMut(G::EdgeRef) -> EdgeControl,
+    {
+        let mut visited = graph.visit_map();
+        let mut scores = HashMap::new();
+        let mut visit_next = BinaryHeap::new();
+        let zero_score = 0;
+        scores.insert(start, zero_score);
+        visit_next.push(MinScored(zero_score, start));
+        while let Some(MinScored(node_score, node)) = visit_next.pop() {
+            if visited.is_visited(&node) {
+                continue;
+            }
+            // if goal.as_ref() == Some(&node) {
+            //     break;
+            // }
+            for edge in graph.edges(node) {
+                let next = edge.target();
+                if visited.is_visited(&next) {
+                    continue;
+                }
+                let this_edge = match edge_cost(edge) {
+                    EdgeControl::Continue(c) => c,
+                    EdgeControl::Break(c) => {
+                        visited.visit(next);
+                        c
+                    }
+                    EdgeControl::Block => continue,
+                };
+                let next_score = node_score + this_edge;
+                match scores.entry(next) {
+                    Occupied(ent) => {
+                        if next_score < *ent.get() {
+                            *ent.into_mut() = next_score;
+                            visit_next.push(MinScored(next_score, next));
+                        }
+                    }
+                    Vacant(ent) => {
+                        ent.insert(next_score);
+                        visit_next.push(MinScored(next_score, next));
+                    }
+                }
+            }
+            visited.visit(node);
+        }
+        scores
+    }
+
+    mod scored {
+        use std::cmp::Ordering;
+
+        /// `MinScored<K, T>` holds a score `K` and a scored object `T` in
+        /// a pair for use with a `BinaryHeap`.
+        ///
+        /// `MinScored` compares in reverse order by the score, so that we can
+        /// use `BinaryHeap` as a min-heap to extract the score-value pair with the
+        /// least score.
+        ///
+        /// **Note:** `MinScored` implements a total order (`Ord`), so that it is
+        /// possible to use float types as scores.
+        #[derive(Copy, Clone, Debug)]
+        pub struct MinScored<K, T>(pub K, pub T);
+
+        impl<K: PartialOrd, T> PartialEq for MinScored<K, T> {
+            #[inline]
+            fn eq(&self, other: &MinScored<K, T>) -> bool {
+                self.cmp(other) == Ordering::Equal
             }
         }
 
-        // Pick up new keys
-        if let Tile::Key(k) = dst_t {
-            if !seen.contains(*k) {
-                stack.push((dst, *k));
+        impl<K: PartialOrd, T> Eq for MinScored<K, T> {}
+
+        impl<K: PartialOrd, T> PartialOrd for MinScored<K, T> {
+            #[inline]
+            fn partial_cmp(&self, other: &MinScored<K, T>) -> Option<Ordering> {
+                Some(self.cmp(other))
             }
         }
 
-        // Don't go to a door we don't have a key for
-        if let Tile::Door(k) = dst_t {
-            if !seen.contains(*k) {
-                return PathCost::Block;
+        impl<K: PartialOrd, T> Ord for MinScored<K, T> {
+            #[inline]
+            fn cmp(&self, other: &MinScored<K, T>) -> Ordering {
+                let a = &self.0;
+                let b = &other.0;
+                if a == b {
+                    Ordering::Equal
+                } else if a < b {
+                    Ordering::Greater
+                } else if a > b {
+                    Ordering::Less
+                } else if a.ne(a) && b.ne(b) {
+                    // these are the NaN cases
+                    Ordering::Equal
+                } else if a.ne(a) {
+                    // Order NaN less, so that it is last in the MinScore order
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
             }
         }
-        PathCost::Path(1)
     }
 }

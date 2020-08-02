@@ -40,13 +40,20 @@ mod test {
     use super::*;
     use crate::challenges::test::*;
 
-    pub(crate) const EXAMPLES: [&str; 6] = [
+    pub(crate) const EXAMPLES: [&str; 5] = [
         DAY18_EX1,
         DAY18_EX2,
         DAY18_EX3,
         DAY18_EX4,
         DAY18_EX5,
-        DAY18_INPUT,
+    ];
+
+    pub(crate) const ANSWERS: [u32; 5] = [
+        8,
+        86,
+        132,
+        136,
+        81
     ];
 
     #[test]
@@ -57,5 +64,12 @@ mod test {
     #[test]
     fn day18part2() {
         assert_eq!(part2(DAY18_INPUT).unwrap().as_str(), "0")
+    }
+
+    #[test]
+    fn examples() {
+        for (input, output) in EXAMPLES.iter().zip(ANSWERS.iter()) {
+            assert_eq!(part1(input).unwrap(), format!("{}", output));
+        }
     }
 }
