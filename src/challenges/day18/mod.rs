@@ -40,21 +40,9 @@ mod test {
     use super::*;
     use crate::challenges::test::*;
 
-    pub(crate) const EXAMPLES: [&str; 5] = [
-        DAY18_EX1,
-        DAY18_EX2,
-        DAY18_EX3,
-        DAY18_EX4,
-        DAY18_EX5,
-    ];
+    pub(crate) const EXAMPLES: [&str; 5] = [DAY18_EX1, DAY18_EX2, DAY18_EX3, DAY18_EX4, DAY18_EX5];
 
-    pub(crate) const ANSWERS: [u32; 5] = [
-        8,
-        86,
-        132,
-        136,
-        81
-    ];
+    pub(crate) const ANSWERS: [u32; 5] = [8, 86, 132, 136, 81];
 
     #[test]
     fn day18part1() {

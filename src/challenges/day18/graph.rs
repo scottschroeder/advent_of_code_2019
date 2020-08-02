@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use std::ops::Add;
-use traverse::{EdgeControl, dijkstra};
+use traverse::{dijkstra, EdgeControl};
 
 trait ExploreQueue: Default {
     fn insert(&mut self, e: ExploreState);
@@ -267,7 +267,7 @@ impl CaveGraph {
         dst: NodeIndex,
         seen: KeySet,
         stack: &mut Vec<(NodeIndex, Key)>,
-    ) -> EdgeControl {
+    ) -> EdgeControl<u32> {
         //let dst_t2 = self.inner.node_weight(dst).unwrap();
         let dst_t = self.nidx_to_tile[dst.index()];
         match dst_t {
@@ -293,6 +293,7 @@ impl CaveGraph {
 }
 
 mod traverse {
+    use petgraph::algo::Measure;
     use petgraph::visit::{EdgeRef, IntoEdges, VisitMap, Visitable};
     use scored::MinScored;
     use std::collections::hash_map::Entry::{Occupied, Vacant};
@@ -300,26 +301,27 @@ mod traverse {
     use std::hash::Hash;
 
     #[derive(Debug, Clone, Copy, PartialEq)]
-    pub(crate) enum EdgeControl {
-        Continue(u32),
-        Break(u32),
+    pub(crate) enum EdgeControl<T> {
+        Continue(T),
+        Break(T),
         Block,
     }
 
-    pub(crate) fn dijkstra<G, F>(
+    pub(crate) fn dijkstra<G, F, K>(
         graph: G,
         start: G::NodeId,
         mut edge_cost: F,
-    ) -> HashMap<G::NodeId, u32>
+    ) -> HashMap<G::NodeId, K>
     where
         G: IntoEdges + Visitable,
         G::NodeId: Eq + Hash,
-        F: FnMut(G::EdgeRef) -> EdgeControl,
+        F: FnMut(G::EdgeRef) -> EdgeControl<K>,
+        K: Measure + Copy,
     {
         let mut visited = graph.visit_map();
         let mut scores = HashMap::new();
         let mut visit_next = BinaryHeap::new();
-        let zero_score = 0;
+        let zero_score = K::default();
         scores.insert(start, zero_score);
         visit_next.push(MinScored(zero_score, start));
         while let Some(MinScored(node_score, node)) = visit_next.pop() {
