@@ -17,7 +17,7 @@ pub fn part2(input: &str) -> Result<String> {
 pub fn test_diagnostic(intcode: Vec<i64>, system_code: i64) -> Result<i64> {
     let input = vec![system_code];
     let (_mem, output) = run_intcode(intcode, input)?;
-    debug!(slog_scope::logger(), "output: {:?}", output);
+    log::debug!("output: {:?}", output);
     let diag = output[output.len() - 1];
     Ok(diag)
 }

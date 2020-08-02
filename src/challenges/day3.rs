@@ -86,8 +86,6 @@ impl WireSegment {
     }
 
     fn intersection(self, other: WireSegment) -> WireIntersect {
-        let _log = slog_scope::logger();
-
         match (self.axis(), other.axis()) {
             (WireAxis::Horizontal(x), WireAxis::Vertical(y))
             | (WireAxis::Vertical(y), WireAxis::Horizontal(x)) => {
@@ -155,10 +153,7 @@ fn wire_crossings(w1: &Wire, w2: &Wire) -> Vec<WirePoint> {
                     }
                 }
                 WireIntersect::Run => {
-                    warn!(
-                        slog_scope::logger(),
-                        "Run intersection: {:?}, {:?}", w1s, w2s
-                    );
+                    log::warn!("Run intersection: {:?}, {:?}", w1s, w2s);
                 }
             }
         }
@@ -221,7 +216,7 @@ fn parse_wirerun(input: &str) -> Result<WireRun> {
     let step = parse_str::<u64>(n)?;
 
     let segment = WireRun { direction, step };
-    //trace!(slog_scope::logger(), "{} -> {:?}", input, segment);
+    //log::trace!( "{} -> {:?}", input, segment);
     Ok(segment)
 }
 

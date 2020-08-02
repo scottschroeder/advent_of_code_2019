@@ -110,12 +110,11 @@ mod amplifier {
             for (idx, amp) in self.amps.into_iter().enumerate() {
                 let amp: Amplifier = amp;
                 let join = std::thread::spawn(move || {
-                    let log = slog_scope::logger();
-                    debug!(log, "Amplifier {} start", idx);
+                    log::debug!("Amplifier {} start", idx);
                     if let Err(e) = amp.run() {
-                        error!(log, "Amplifier {} errored: {}", idx, e)
+                        log::error!("Amplifier {} errored: {}", idx, e)
                     } else {
-                        debug!(log, "Amplifier {} finished", idx);
+                        log::debug!("Amplifier {} finished", idx);
                     }
                 });
                 threads.push(join);

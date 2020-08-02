@@ -97,12 +97,12 @@ pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let (_, out) = run_intcode(intcode, vec![])?;
     let (m, _) = Map::from_render(out.as_slice())?;
-    //trace!(slog_scope::logger(), "m: {:?}, r: {:#?}", m, r);
+    //log::trace!( "m: {:?}, r: {:#?}", m, r);
     let intersections = m.intersections().collect::<Vec<_>>();
-    trace!(slog_scope::logger(), "intersections: {:#?}", intersections);
+    log::trace!("intersections: {:#?}", intersections);
 
     let s = intcode_to_string(out.as_slice())?;
-    trace!(slog_scope::logger(), "map:\n{}", s);
+    log::trace!("map:\n{}", s);
 
     Ok(format!(
         "{}",
@@ -114,7 +114,7 @@ pub fn part2(input: &str) -> Result<String> {
     let mut intcode = parse_intcode(input)?;
     let (_, out) = run_intcode(intcode.clone(), vec![2])?;
     let program = program_walk(out.as_slice(), 16017)?;
-    debug!(slog_scope::logger(), "input:\n{}", program.to_ascii());
+    log::debug!("input:\n{}", program.to_ascii());
 
     // Wake up cmd
     intcode[0] = 2;
@@ -147,7 +147,7 @@ fn program_walk(map_data: &[i64], cheat: usize) -> Result<RobotProgram> {
     let (m, r) = Map::from_render(map_data)?;
 
     let chunk_map = m.to_chunk_graph()?;
-    trace!(slog_scope::logger(), "chunks: {:#?}", chunk_map);
+    log::trace!("chunks: {:#?}", chunk_map);
 
     let mut trial = 0;
     let program = ScaffoldSearcher::new(&m, &chunk_map, r.loc)
@@ -156,12 +156,7 @@ fn program_walk(map_data: &[i64], cheat: usize) -> Result<RobotProgram> {
             let instr = Instruction::sequence(r.orientation, p.as_slice());
             let cmpt = compact_instructions(instr.as_slice());
             trial += 1;
-            debug!(
-                slog_scope::logger(),
-                "path({}): {}",
-                trial,
-                PrintableSeq(cmpt.as_slice())
-            );
+            log::debug!("path({}): {}", trial, PrintableSeq(cmpt.as_slice()));
             cmpt
         })
         .filter_map(|cmpct| {
@@ -181,7 +176,7 @@ fn program_walk(map_data: &[i64], cheat: usize) -> Result<RobotProgram> {
         })
         .nth(0)
         .ok_or_else(|| ah!("could not find suitable program"))?;
-    info!(slog_scope::logger(), "program: {:#?}", program);
+    log::info!("program: {:#?}", program);
     Ok(program)
 }
 
@@ -521,7 +516,7 @@ fn index_to_point(w: usize, idx: usize) -> Point {
 fn point_to_index(w: usize, p: Point) -> usize {
     let x = p.x as usize;
     let y = p.y as usize;
-    //trace!(slog_scope::logger(), "p2i w={} p={}", w, p);
+    //log::trace!( "p2i w={} p={}", w, p);
     y * w + x
 }
 

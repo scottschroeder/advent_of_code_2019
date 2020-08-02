@@ -12,7 +12,7 @@ pub fn part1(input: &str) -> Result<String> {
 
     let mut img = ImageNormal::create(&robot.map.inner);
     //img.display_grid(true);
-    info!(slog_scope::logger(), "{}", img);
+    log::info!("{}", img);
     let o2 = robot.map.o2system().unwrap();
     let path = robot.map.path((0, 0).into(), o2)?;
     Ok(format!("{}", path.len() - 1))
@@ -296,8 +296,7 @@ mod o2repair {
     impl Output for Robot {
         fn output(&mut self, out: i64) -> Result<()> {
             let status = Status::from(out);
-            trace!(
-                slog_scope::logger(),
+            log::trace!(
                 "Robot {} went {:?}, found: {:?}",
                 self.loc,
                 self.cmd,

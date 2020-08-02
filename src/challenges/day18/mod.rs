@@ -12,9 +12,9 @@ mod map_reader;
 
 pub fn part1(input: &str) -> Result<String> {
     let m = map_reader::Map::parse(input);
-    //debug!(slog_scope::logger(), "{:#?}", m);
+    //log::debug!( "{:#?}", m);
     let g = graph::CaveGraph::from_map(m);
-    //debug!(slog_scope::logger(), "{}", g.dot());
+    //log::debug!( "{}", g.dot());
     //return Ok(format!("{}", g.dot()));
     let shortest = g.shortest_path();
     Ok(format!("{}", shortest))
@@ -22,7 +22,7 @@ pub fn part1(input: &str) -> Result<String> {
 
 pub fn part2(input: &str) -> Result<String> {
     let e = KeySet::new();
-    debug!(slog_scope::logger(), "{:?}", e);
+    log::debug!("{:?}", e);
     Ok(format!("{}", 0))
 }
 

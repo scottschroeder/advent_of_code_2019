@@ -95,14 +95,14 @@ impl<'a> OrbitalMap<'a> {
         let undirected: GraphMap<&str, (), petgraph::Undirected> =
             GraphMap::from_edges(self.inner.all_edges());
         let x = petgraph::algo::dijkstra(&undirected, src, Some(dst), |(s, d, _)| {
-            //trace!(slog_scope::logger(), "edge {} -> {}", s, d);
+            //log::trace!( "edge {} -> {}", s, d);
             1
         });
         x.get("SAN").and_then(|x| {
             if *x >= 2 {
                 Some(x - 2 as usize)
             } else {
-                trace!(slog_scope::logger(), "Got too short of distance: {:#?}", x);
+                log::trace!("Got too short of distance: {:#?}", x);
                 None
             }
         })

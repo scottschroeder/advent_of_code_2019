@@ -90,8 +90,7 @@ mod space_image_format {
             assert_eq!(layer.height, self.height);
             assert_eq!(layer.inner.len(), self.inner.len());
             for (c, l) in self.inner.iter_mut().zip(layer.inner.iter()) {
-                let log = slog_scope::logger();
-                trace!(log, "c={}, l={}", c, l);
+                log::trace!("c={}, l={}", c, l);
                 if *c >= 2 {
                     *c = *l;
                 }

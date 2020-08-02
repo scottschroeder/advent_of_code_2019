@@ -14,7 +14,7 @@ where
 }
 
 pub fn read_to_string<P: AsRef<path::Path>>(path: P) -> Result<String> {
-    slog_scope::trace!("Reading content of file: {}", path.as_ref().display());
+    log::trace!("Reading content of file: {}", path.as_ref().display());
     let mut f = fs::File::open(&path)
         .with_context(|| format!("Unable to open path: {}", path.as_ref().display()))?;
 

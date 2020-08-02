@@ -16,12 +16,10 @@ itertools = "0.8.2"
 num = "0.2"
 regex = "1"
 lazy_static = "1"
+log = "0.4"
+pretty_env_logger = "0.4"
 
-# logging
-slog = {version = "2.5.2", features=["max_level_trace"] }
-slog-async = "2.3.0"
-slog-term = "2.4.2"
-slog-scope = "4.3.0"
+
 [profile.test]
 opt-level = 3
 

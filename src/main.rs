@@ -5,12 +5,8 @@ extern crate clap;
 
 use clap::{Arg, ArgMatches, SubCommand};
 
-#[macro_use]
-extern crate slog;
-extern crate slog_async;
-extern crate slog_term;
+extern crate log;
 
-use slog::Drain;
 use std::sync::Arc;
 
 pub mod util;
@@ -48,7 +44,7 @@ pub mod challenges {
         let part = args.value_of("part").unwrap().parse::<u32>()?;
         let input = crate::util::read_to_string(args.value_of("input").unwrap())?;
 
-        debug!(slog_scope::logger(), "running day {}:{}", day, part);
+        log::debug!("running day {}:{}", day, part);
         let result = match (day, part) {
             (1, 1) => day1::part1(&input)?,
             (1, 2) => day1::part2(&input)?,
@@ -133,9 +129,7 @@ pub mod challenges {
 }
 
 fn run(args: &ArgMatches) -> Result<()> {
-    let log = slog_scope::logger();
-
-    trace!(log, "Args: {:?}", args);
+    log::trace!("Args: {:?}", args);
 
     match args.subcommand() {
         ("challenge", Some(sub_m)) => crate::challenges::do_challenge(sub_m)?,
@@ -147,30 +141,45 @@ fn run(args: &ArgMatches) -> Result<()> {
 
 fn main() -> Result<()> {
     let args = get_args();
-
-    // Setup logger
-    let _guard = slog_scope::set_global_logger(setup_logger(args.occurrences_of("verbosity")));
-
+    setup_logger(args.occurrences_of("verbosity"));
     run(&args)
 }
 
-fn setup_logger(level: u64) -> slog::Logger {
+fn setup_logger(level: u64) {
+    use std::io::Write;
+
+    let noisy_modules = &[
+        "hyper",
+        "mio",
+        "tokio_core",
+        "tokio_reactor",
+        "tokio_threadpool",
+        "fuse::request",
+        "rusoto_core",
+        "want",
+    ];
+
     let log_level = match level {
-        0 => slog::Level::Warning,
-        1 => slog::Level::Info,
-        2 => slog::Level::Debug,
-        _ => slog::Level::Trace,
+        //0 => log::Level::Error,
+        0 => log::LevelFilter::Warn,
+        1 => log::LevelFilter::Info,
+        2 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
     };
 
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = drain.filter_level(log_level).fuse();
-    let drain = std::sync::Mutex::new(drain).fuse();
-    //    let drain = slog_async::Async::new(drain)
-    //        .chan_size(1 << 10)
-    //        .build()
-    //        .fuse();
-    slog::Logger::root(Arc::new(drain), o!())
+    let mut builder = pretty_env_logger::formatted_timed_builder();
+    if level > 1 && level < 4 {
+        for module in noisy_modules {
+            builder.filter_module(module, log::LevelFilter::Info);
+        }
+    }
+
+    builder.filter_level(log_level);
+    builder.format_module_path(false);
+    //builder.format_timestamp_millis();
+    //builder.format(|buf, record| writeln!(buf, "{}", record.args()));
+
+    builder.init();
 }
 
 fn get_args() -> clap::ArgMatches<'static> {

@@ -49,7 +49,7 @@ impl Input for NullIO {
 
 impl Output for NullIO {
     fn output(&mut self, out: Int) -> Result<()> {
-        trace!(slog_scope::logger(), "NullIO output => {}", out);
+        log::trace!("NullIO output => {}", out);
         Ok(())
     }
 }
@@ -77,7 +77,7 @@ impl Input for VecIO {
 
 impl Output for VecIO {
     fn output(&mut self, out: Int) -> Result<()> {
-        trace!(slog_scope::logger(), "VecIO output => {}", out);
+        log::trace!("VecIO output => {}", out);
         self.inner.push(out);
         Ok(())
     }
@@ -140,14 +140,13 @@ impl<U: Input, V: Input> Input for MultiIO<U, V> {
 impl<U: Output, V: Output> Output for MultiIO<U, V> {
     fn output(&mut self, out: Int) -> Result<()> {
         let mut msg_send = false;
-        let log = slog_scope::logger();
         if let Err(e) = self.first.output(out) {
-            info!(log, "output stream failed: {}", e);
+            log::info!("output stream failed: {}", e);
         } else {
             msg_send = true;
         }
         if let Err(e) = self.second.output(out) {
-            info!(log, "output stream failed: {}", e);
+            log::info!("output stream failed: {}", e);
         } else {
             msg_send = true;
         }

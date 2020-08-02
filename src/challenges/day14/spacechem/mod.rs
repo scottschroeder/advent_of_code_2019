@@ -118,14 +118,7 @@ impl NanoFactory {
             let x0 = supply.get(&desired) + x;
             let y0 = -supply.get(&limit.molecule);
             let slope = y0 as f64 / x0 as f64;
-            trace!(
-                slog_scope::logger(),
-                "input: {} x: {} y: {} slope: {}",
-                x,
-                x0,
-                y0,
-                slope
-            );
+            log::trace!("input: {} x: {} y: {} slope: {}", x, x0, y0, slope);
             slope
         };
         let mut guess = 1;

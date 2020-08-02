@@ -42,7 +42,7 @@ impl PartialOrd for PathCost {
     }
 }
 
-trait ExploreQueue : Default {
+trait ExploreQueue: Default {
     fn insert(&mut self, e: ExploreState);
     fn pop(&mut self) -> Option<ExploreState>;
     fn len(&self) -> usize;
@@ -76,7 +76,6 @@ impl ExploreQueue for ExploreMinHeap {
     fn len(&self) -> usize {
         self.0.len()
     }
-    
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ExploreState {
@@ -201,7 +200,6 @@ impl CaveGraph {
     }
 
     pub(crate) fn shortest_path(&self) -> u32 {
-        let log = slog_scope::logger();
         //let mut queue = ExploreMinHeap::default();
         let mut queue = ExploreMinHeap::default();
         queue.insert(self.start());
@@ -209,8 +207,6 @@ impl CaveGraph {
     }
 
     fn process_queue<Q: ExploreQueue>(&self, queue: &mut Q) -> Option<u32> {
-        let log = slog_scope::logger();
-
         let mut shortest_distance = None;
         let mut seen_explore = HashMap::new();
 
@@ -223,7 +219,7 @@ impl CaveGraph {
             })
             .fold(KeySet::new(), |acc, k| acc.insert(k));
 
-        info!(log, "Looking for all keys in {:?}", all_keys);
+        log::info!("Looking for all keys in {:?}", all_keys);
 
         while let Some(explore) = queue.pop() {
             match seen_explore.entry(explore.cache_key()) {
@@ -244,8 +240,8 @@ impl CaveGraph {
                     continue;
                 }
             }
-            debug!(log, "TOTAL: {} Current {:?}", queue.len(), explore);
-            trace!(log, "\n{}", self.explored_map(explore));
+            log::debug!("TOTAL: {} Current {:?}", queue.len(), explore);
+            log::trace!("\n{}", self.explored_map(explore));
             let seen = explore.keys;
             let mut stack = Vec::new();
 
@@ -272,7 +268,7 @@ impl CaveGraph {
                         let prev = shortest_distance.get_or_insert(e.length);
                         if e.length <= *prev {
                             *prev = e.length;
-                            info!(log, "Shortish Path {:?}", e);
+                            log::info!("Shortish Path {:?}", e);
                         }
                         false
                     } else {
@@ -283,11 +279,10 @@ impl CaveGraph {
                     queue.insert(e);
                 });
 
-            //debug!(log, "Dijkstra {:?}", m);
+            //log::debug!( "Dijkstra {:?}", m);
             // queue.extend(next_keys);
-
         }
-        info!(log, "Shortest Path {:?}", shortest_distance);
+        log::info!("Shortest Path {:?}", shortest_distance);
 
         shortest_distance
     }
@@ -303,18 +298,24 @@ impl CaveGraph {
     //         })
     //         .fold(KeySet::new(), |acc, k| acc.insert(k));
 
-    //     info!(log, "Looking for all keys in {:?}", all_keys);
+    //     log::info!( "Looking for all keys in {:?}", all_keys);
     //     let mut shortest_distance = None;
 
     //     let mut queue = std::collections::BinaryHeap::new();
     //     queue.push(std::cmp::Reverse(explore));
     //     let mut seen_explore = HashMap::new();
 
-    //     info!(log, "Shortest Path {:?}", shortest_distance);
+    //     log::info!( "Shortest Path {:?}", shortest_distance);
     //     return shortest_distance.unwrap();
     // }
 
-    fn edge_cost(&self, src: NodeIndex, dst: NodeIndex, seen: KeySet, stack: &mut Vec<(NodeIndex, Key)>) -> PathCost {
+    fn edge_cost(
+        &self,
+        src: NodeIndex,
+        dst: NodeIndex,
+        seen: KeySet,
+        stack: &mut Vec<(NodeIndex, Key)>,
+    ) -> PathCost {
         let src_t = self.inner.node_weight(src).unwrap();
         let dst_t = self.inner.node_weight(dst).unwrap();
 

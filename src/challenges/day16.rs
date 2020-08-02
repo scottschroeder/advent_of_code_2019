@@ -59,7 +59,7 @@ fn signal_reverse_fill(previous: &[i8]) -> Vec<i8> {
 fn process_signal(signal: &Signal, rounds: usize) -> Signal {
     let mut signal = signal.clone();
     for r in 0..rounds {
-        trace!(slog_scope::logger(), "Round: {}", r);
+        log::trace!("Round: {}", r);
         signal.0 = signal_round(signal.0.as_slice());
         // not actually fast, I expect the iterator version is
         // getting avx instructions
