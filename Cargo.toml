@@ -24,3 +24,6 @@ slog-term = "2.4.2"
 slog-scope = "4.3.0"
 [profile.test]
 opt-level = 3
+
+[profile.release]
+debug = true
