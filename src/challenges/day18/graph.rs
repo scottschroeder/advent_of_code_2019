@@ -42,6 +42,20 @@ impl ExploreQueue for ExploreMinHeap {
         self.0.len()
     }
 }
+#[derive(Default)]
+struct ExploreMaxHeap(std::collections::BinaryHeap<ExploreState>);
+
+impl ExploreQueue for ExploreMaxHeap {
+    fn insert(&mut self, e: ExploreState) {
+        self.0.push(e)
+    }
+    fn pop(&mut self) -> Option<ExploreState> {
+        self.0.pop()
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ExploreState {
     pos: NodeIndex,
@@ -50,8 +64,8 @@ pub(crate) struct ExploreState {
 }
 
 impl ExploreState {
-    fn cache_key(self) -> (SingleCacheKey, u32) {
-        (SingleCacheKey((self.pos, self.keys)), self.length)
+    fn cache_key(self) -> SingleCacheKey {
+        SingleCacheKey((self.pos, self.keys))
     }
 }
 
@@ -62,11 +76,11 @@ impl PartialOrd for ExploreState {
 }
 impl Ord for ExploreState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.keys.len().cmp(&other.keys.len()) {
-            std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
-            std::cmp::Ordering::Equal => self.length.cmp(&other.length),
-            std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
-        }
+        self.length.cmp(&other.length)
+                // other.keys.len().cmp(&self.keys.len())
+            .then(
+                self.keys.len().cmp(&other.keys.len())
+            )
     }
 }
 
@@ -145,7 +159,6 @@ impl CaveGraph {
             .enumerate()
             .find(|(_, n)| **n == explore.pos)
             .unwrap();
-        println!("EXPLORE MAP: {:?}", explore);
         let mut m = self.map.clone();
         for t in &mut m.data {
             match t {
@@ -230,21 +243,28 @@ impl CaveGraph {
     }
 
     pub(crate) fn shortest_path(&self) -> u32 {
-        //let mut queue = ExploreMinHeap::default();
+        // let mut queue = ExploreStack::default();
+        // let mut queue = ExploreMaxHeap::default();
         let mut queue = ExploreMinHeap::default();
-        queue.insert(self.start());
         self.process_queue(&mut queue).unwrap()
     }
 
-    fn process_queue<Q: ExploreQueue>(&self, queue: &mut Q) -> Option<u32> {
+    fn process_queue<Q: ExploreQueue>(&self, priority_queue: &mut Q) -> Option<u32> {
         let mut shortest_distance = None;
-        let mut seen_explore = HashMap::new();
+        let mut distances = HashMap::new();
+
+        let start = ExploreState {
+            pos: self.start,
+            length: 0,
+            keys: KeySet::new(),
+        };
 
         log::info!("Looking for all keys in {:?}", self.all_keys);
 
-        let mut stack = Vec::new();
-        while let Some(explore) = queue.pop() {
-            match seen_explore.entry(explore.cache_key()) {
+        priority_queue.insert(start);
+
+        while let Some(explore) = priority_queue.pop() {
+            match distances.entry(explore.cache_key()) {
                 std::collections::hash_map::Entry::Occupied(mut o) => {
                     let prev = o.get_mut();
                     if *prev <= explore.length {
@@ -262,25 +282,33 @@ impl CaveGraph {
                     continue;
                 }
             }
-            log::debug!("TOTAL: {} Current {:?}", queue.len(), explore);
+            log::debug!("TOTAL: {} Current {:?}", priority_queue.len(), explore);
             log::trace!("\n{}", self.explored_map(explore));
             let seen = explore.keys;
 
-            stack.truncate(0);
 
             let m = traverse::dijkstra(&self.inner, explore.pos, |e| {
                 let dst = e.target();
-                self.edge_cost(dst, seen, *e.weight(), &mut stack)
+                self.edge_cost(dst, seen, *e.weight())
             });
-
-            stack
+            m
                 .iter()
-                .filter_map(|(n, k)| {
-                    m.get(&n).map(|c| ExploreState {
-                        pos: *n,
-                        length: c + explore.length,
-                        keys: seen.insert(*k),
-                    })
+                .filter_map(|(n, c)|{
+                    let t: Tile = self.nidx_to_tile[n.index()];
+                    if let Tile::Key(k) = t {
+                        let keys = seen.insert(k);
+                        if keys != seen {
+                            Some(ExploreState {
+                                pos: *n,
+                                length: c + explore.length,
+                                keys,
+                            }) 
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 })
                 .filter(|e| {
                     if e.keys == self.all_keys {
@@ -295,11 +323,8 @@ impl CaveGraph {
                     }
                 })
                 .for_each(|e| {
-                    queue.insert(e);
+                    priority_queue.insert(e);
                 });
-
-            //log::debug!( "Dijkstra {:?}", m);
-            // queue.extend(next_keys);
         }
         log::info!("Shortest Path {:?}", shortest_distance);
 
@@ -311,7 +336,6 @@ impl CaveGraph {
         dst: NodeIndex,
         seen: KeySet,
         weight: u32,
-        stack: &mut Vec<(NodeIndex, Key)>,
     ) -> EdgeControl<u32> {
         //let dst_t2 = self.inner.node_weight(dst).unwrap();
         let dst_t = self.nidx_to_tile[dst.index()];
@@ -325,7 +349,6 @@ impl CaveGraph {
             }
             Tile::Key(k) => {
                 if !seen.contains(k) {
-                    stack.push((dst, k));
                     EdgeControl::Break(weight)
                 } else {
                     EdgeControl::Continue(weight)
