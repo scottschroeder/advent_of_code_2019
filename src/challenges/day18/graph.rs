@@ -76,6 +76,7 @@ struct SingleCacheKey((NodeIndex, KeySet));
 pub(crate) struct CaveGraph {
     inner: StableGraph<Tile, u8, petgraph::Undirected>,
     start: NodeIndex,
+    all_keys: KeySet,
     map: Map,
     raw_to_nidx: Vec<NodeIndex>,
     nidx_to_tile: Vec<Tile>,
@@ -88,6 +89,46 @@ impl CaveGraph {
             length: 0,
             keys: KeySet::new(),
         }
+    }
+
+    pub(crate) fn compress(&self) -> CaveGraph {
+        let mut g = StableGraph::default();
+        for nidx in self.inner.node_indices() {
+            let tile = self.inner.node_weight(nidx).unwrap();
+            match tile {
+                Tile::Start | Tile::Key(_) => {
+                    let m = traverse::dijkstra(&self.inner, nidx, |e| {
+                        let dst: NodeIndex = e.target();
+                        let dst_t = self.nidx_to_tile[dst.index()];
+                        let w = *e.weight();
+                        match dst_t {
+                            Tile::Wall => EdgeControl::Block,
+                            Tile::Space | Tile::Start => EdgeControl::Continue(w),
+                            Tile::Door(_) => EdgeControl::Break(w),
+                            Tile::Key(_) => EdgeControl::Break(w),
+                        }
+                    });
+                    for (dst, w) in m {
+                        let dst_t = self.nidx_to_tile[dst.index()];
+                        //g.add_edge(a, b, weight)
+                    }
+                }
+                _ => {}
+            }
+
+
+        }
+
+
+        CaveGraph {
+            inner: g,
+            start: self.start,
+            all_keys: self.all_keys,
+            map: self.map.clone(),
+            raw_to_nidx: vec![], // TODO
+            nidx_to_tile: vec![], // TODO
+        }
+
     }
     pub(crate) fn explored_map(&self, explore: ExploreState) -> Map {
         let (idx, _) = self
@@ -122,12 +163,15 @@ impl CaveGraph {
         let mut g = StableGraph::default();
         let mut start = None;
         let mut max_nidx = 0;
+        let mut all_keys = KeySet::new();
         for t in &m.data {
             let idx = g.add_node(*t);
             max_nidx = std::cmp::max(max_nidx, idx.index());
             node_idx.push(idx);
-            if *t == Tile::Start {
-                start = Some(idx);
+            match t {
+                Tile::Start => start = Some(idx),
+                Tile::Key(k) => all_keys = all_keys.insert(*k),
+                _ => {}
             }
         }
 
@@ -162,6 +206,7 @@ impl CaveGraph {
             inner: g,
             map: m,
             start: start.expect("graph must have a start tile"),
+            all_keys,
             raw_to_nidx: node_idx,
             nidx_to_tile,
         };
@@ -187,16 +232,7 @@ impl CaveGraph {
         let mut shortest_distance = None;
         let mut seen_explore = HashMap::new();
 
-        let all_keys = self
-            .inner
-            .node_references()
-            .filter_map(|(_, t)| match t {
-                Tile::Key(k) => Some(*k),
-                _ => None,
-            })
-            .fold(KeySet::new(), |acc, k| acc.insert(k));
-
-        log::info!("Looking for all keys in {:?}", all_keys);
+        log::info!("Looking for all keys in {:?}", self.all_keys);
 
         let mut stack = Vec::new();
         while let Some(explore) = queue.pop() {
@@ -239,7 +275,7 @@ impl CaveGraph {
                     })
                 })
                 .filter(|e| {
-                    if e.keys == all_keys {
+                    if e.keys == self.all_keys {
                         let prev = shortest_distance.get_or_insert(e.length);
                         if e.length <= *prev {
                             *prev = e.length;
