@@ -12,17 +12,18 @@ mod map_reader;
 
 pub fn part1(input: &str) -> Result<String> {
     let m = map_reader::Map::parse(input);
-    //log::debug!( "{:#?}", m);
     let g = graph::CaveGraph::from_map(m);
-    //log::debug!( "{}", g.dot());
+    let g2 = g.compress();
     //return Ok(format!("{}", g.dot()));
-    let shortest = g.shortest_path();
+    let shortest = g2.shortest_path();
     Ok(format!("{}", shortest))
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    let e = KeySet::new();
-    log::debug!("{:?}", e);
+    let m = map_reader::Map::parse(input);
+    let g = graph::CaveGraph::from_map(m);
+    let g2 = g.compress();
+    return Ok(format!("{}", g2.dot()));
     Ok(format!("{}", 0))
 }
 

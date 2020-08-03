@@ -74,7 +74,7 @@ impl Ord for ExploreState {
 struct SingleCacheKey((NodeIndex, KeySet));
 
 pub(crate) struct CaveGraph {
-    inner: StableGraph<Tile, u8, petgraph::Undirected>,
+    inner: StableGraph<Tile, u32, petgraph::Undirected>,
     start: NodeIndex,
     all_keys: KeySet,
     map: Map,
@@ -92,11 +92,12 @@ impl CaveGraph {
     }
 
     pub(crate) fn compress(&self) -> CaveGraph {
-        let mut g = StableGraph::default();
+        let mut g = self.inner.clone();
+        g.clear_edges();
         for nidx in self.inner.node_indices() {
             let tile = self.inner.node_weight(nidx).unwrap();
             match tile {
-                Tile::Start | Tile::Key(_) => {
+                Tile::Start | Tile::Key(_) | Tile::Door(_) => {
                     let m = traverse::dijkstra(&self.inner, nidx, |e| {
                         let dst: NodeIndex = e.target();
                         let dst_t = self.nidx_to_tile[dst.index()];
@@ -109,15 +110,22 @@ impl CaveGraph {
                         }
                     });
                     for (dst, w) in m {
-                        let dst_t = self.nidx_to_tile[dst.index()];
-                        //g.add_edge(a, b, weight)
+                        if nidx >= dst {
+                            continue;
+                        }
+                        let dst_t: Tile = self.nidx_to_tile[dst.index()];
+                        match dst_t {
+                            Tile::Start | Tile::Door(_) | Tile::Key(_) => {
+                                g.add_edge(nidx, dst, w);
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 _ => {}
             }
-
-
         }
+        g.retain_nodes(|g, n| *g.node_weight(n).unwrap() != Tile::Space);
 
 
         CaveGraph {
@@ -125,8 +133,8 @@ impl CaveGraph {
             start: self.start,
             all_keys: self.all_keys,
             map: self.map.clone(),
-            raw_to_nidx: vec![], // TODO
-            nidx_to_tile: vec![], // TODO
+            raw_to_nidx: self.raw_to_nidx.clone(),
+            nidx_to_tile: self.nidx_to_tile.clone(),
         }
 
     }
@@ -262,7 +270,7 @@ impl CaveGraph {
 
             let m = traverse::dijkstra(&self.inner, explore.pos, |e| {
                 let dst = e.target();
-                self.edge_cost(dst, seen, &mut stack)
+                self.edge_cost(dst, seen, *e.weight(), &mut stack)
             });
 
             stack
@@ -302,6 +310,7 @@ impl CaveGraph {
         &self,
         dst: NodeIndex,
         seen: KeySet,
+        weight: u32,
         stack: &mut Vec<(NodeIndex, Key)>,
     ) -> EdgeControl<u32> {
         //let dst_t2 = self.inner.node_weight(dst).unwrap();
@@ -311,19 +320,19 @@ impl CaveGraph {
                 if !seen.contains(k) {
                     EdgeControl::Block
                 } else {
-                    EdgeControl::Continue(1)
+                    EdgeControl::Continue(weight)
                 }
             }
             Tile::Key(k) => {
                 if !seen.contains(k) {
                     stack.push((dst, k));
-                    EdgeControl::Break(1)
+                    EdgeControl::Break(weight)
                 } else {
-                    EdgeControl::Continue(1)
+                    EdgeControl::Continue(weight)
                 }
             }
             // Other things are unreachable
-            _ => EdgeControl::Continue(1),
+            _ => EdgeControl::Continue(weight),
         }
     }
 }
