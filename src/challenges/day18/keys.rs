@@ -24,7 +24,6 @@ impl fmt::Debug for Key {
     }
 }
 
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct KeySet(u32);
 
@@ -43,7 +42,7 @@ impl KeySet {
     pub fn len(&self) -> usize {
         self.0.count_ones() as usize
     }
-    pub fn iter(self) -> impl Iterator<Item=Key> {
+    pub fn iter(self) -> impl Iterator<Item = Key> {
         ('a'..='z')
             .map(|c| Key::from(c))
             .filter(move |k| self.contains(*k))

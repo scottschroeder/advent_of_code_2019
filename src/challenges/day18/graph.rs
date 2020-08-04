@@ -1,61 +1,11 @@
 use super::map_reader::Map;
-use super::{Key, KeySet, Tile};
+use super::{KeySet, Tile};
 use std::collections::HashMap;
 
 use petgraph::stable_graph::{NodeIndex, StableGraph};
-use petgraph::visit::{EdgeRef, IntoNodeReferences};
-use std::ops::Add;
-use traverse::{dijkstra, EdgeControl};
+use petgraph::visit::EdgeRef;
+use traverse::EdgeControl;
 
-trait ExploreQueue: Default {
-    fn insert(&mut self, e: ExploreState);
-    fn pop(&mut self) -> Option<ExploreState>;
-    fn len(&self) -> usize;
-}
-
-#[derive(Default)]
-struct ExploreStack(Vec<ExploreState>);
-
-impl ExploreQueue for ExploreStack {
-    fn insert(&mut self, e: ExploreState) {
-        self.0.push(e)
-    }
-    fn pop(&mut self) -> Option<ExploreState> {
-        self.0.pop()
-    }
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-#[derive(Default)]
-struct ExploreMinHeap(std::collections::BinaryHeap<std::cmp::Reverse<ExploreState>>);
-
-impl ExploreQueue for ExploreMinHeap {
-    fn insert(&mut self, e: ExploreState) {
-        self.0.push(std::cmp::Reverse(e))
-    }
-    fn pop(&mut self) -> Option<ExploreState> {
-        self.0.pop().map(|re| re.0)
-    }
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-#[derive(Default)]
-struct ExploreMaxHeap(std::collections::BinaryHeap<ExploreState>);
-
-impl ExploreQueue for ExploreMaxHeap {
-    fn insert(&mut self, e: ExploreState) {
-        self.0.push(e)
-    }
-    fn pop(&mut self) -> Option<ExploreState> {
-        self.0.pop()
-    }
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ExploreState {
     pos: NodeIndex,
@@ -76,11 +26,10 @@ impl PartialOrd for ExploreState {
 }
 impl Ord for ExploreState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.length.cmp(&other.length)
-                // other.keys.len().cmp(&self.keys.len())
-            .then(
-                self.keys.len().cmp(&other.keys.len())
-            )
+        other
+            .length
+            .cmp(&self.length)
+            .then(self.keys.len().cmp(&other.keys.len()))
     }
 }
 
@@ -97,15 +46,7 @@ pub(crate) struct CaveGraph {
 }
 
 impl CaveGraph {
-    pub(crate) fn start(&self) -> ExploreState {
-        ExploreState {
-            pos: self.start,
-            length: 0,
-            keys: KeySet::new(),
-        }
-    }
-
-    pub(crate) fn compress(&self) -> CaveGraph {
+    fn compress(&mut self) {
         let mut g = self.inner.clone();
         g.clear_edges();
         for nidx in self.inner.node_indices() {
@@ -139,18 +80,11 @@ impl CaveGraph {
                 _ => {}
             }
         }
-        g.retain_nodes(|g, n| *g.node_weight(n).unwrap() != Tile::Space);
-
-
-        CaveGraph {
-            inner: g,
-            start: self.start,
-            all_keys: self.all_keys,
-            map: self.map.clone(),
-            raw_to_nidx: self.raw_to_nidx.clone(),
-            nidx_to_tile: self.nidx_to_tile.clone(),
-        }
-
+        g.retain_nodes(|g, n| match *g.node_weight(n).unwrap() {
+            Tile::Wall | Tile::Space => false,
+            _ => true,
+        });
+        self.inner = g;
     }
     pub(crate) fn explored_map(&self, explore: ExploreState) -> Map {
         let (idx, _) = self
@@ -231,27 +165,17 @@ impl CaveGraph {
             raw_to_nidx: node_idx,
             nidx_to_tile,
         };
-        cg.trim_walls();
+        cg.compress();
         cg
-    }
-    fn trim_walls(&mut self) {
-        self.inner
-            .retain_nodes(|g, n| *(g.node_weight(n).unwrap()) != Tile::Wall);
     }
     pub(crate) fn dot(&self) -> String {
         format!("{:?}", petgraph::dot::Dot::new(&self.inner))
     }
 
-    pub(crate) fn shortest_path(&self) -> u32 {
-        // let mut queue = ExploreStack::default();
-        // let mut queue = ExploreMaxHeap::default();
-        let mut queue = ExploreMinHeap::default();
-        self.process_queue(&mut queue).unwrap()
-    }
-
-    fn process_queue<Q: ExploreQueue>(&self, priority_queue: &mut Q) -> Option<u32> {
+    pub(crate) fn shortest_path(&self) -> Option<u32> {
         let mut shortest_distance = None;
         let mut distances = HashMap::new();
+        let mut priority_queue = std::collections::BinaryHeap::new();
 
         let start = ExploreState {
             pos: self.start,
@@ -261,7 +185,7 @@ impl CaveGraph {
 
         log::info!("Looking for all keys in {:?}", self.all_keys);
 
-        priority_queue.insert(start);
+        priority_queue.push(start);
 
         while let Some(explore) = priority_queue.pop() {
             match distances.entry(explore.cache_key()) {
@@ -286,14 +210,12 @@ impl CaveGraph {
             log::trace!("\n{}", self.explored_map(explore));
             let seen = explore.keys;
 
-
             let m = traverse::dijkstra(&self.inner, explore.pos, |e| {
                 let dst = e.target();
                 self.edge_cost(dst, seen, *e.weight())
             });
-            m
-                .iter()
-                .filter_map(|(n, c)|{
+            m.iter()
+                .filter_map(|(n, c)| {
                     let t: Tile = self.nidx_to_tile[n.index()];
                     if let Tile::Key(k) = t {
                         let keys = seen.insert(k);
@@ -302,7 +224,7 @@ impl CaveGraph {
                                 pos: *n,
                                 length: c + explore.length,
                                 keys,
-                            }) 
+                            })
                         } else {
                             None
                         }
@@ -323,7 +245,7 @@ impl CaveGraph {
                     }
                 })
                 .for_each(|e| {
-                    priority_queue.insert(e);
+                    priority_queue.push(e);
                 });
         }
         log::info!("Shortest Path {:?}", shortest_distance);
@@ -331,12 +253,7 @@ impl CaveGraph {
         shortest_distance
     }
 
-    fn edge_cost(
-        &self,
-        dst: NodeIndex,
-        seen: KeySet,
-        weight: u32,
-    ) -> EdgeControl<u32> {
+    fn edge_cost(&self, dst: NodeIndex, seen: KeySet, weight: u32) -> EdgeControl<u32> {
         //let dst_t2 = self.inner.node_weight(dst).unwrap();
         let dst_t = self.nidx_to_tile[dst.index()];
         match dst_t {

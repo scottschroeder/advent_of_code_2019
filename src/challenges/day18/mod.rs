@@ -13,16 +13,13 @@ mod map_reader;
 pub fn part1(input: &str) -> Result<String> {
     let m = map_reader::Map::parse(input);
     let g = graph::CaveGraph::from_map(m);
-    let g2 = g.compress();
-    //return Ok(format!("{}", g.dot()));
-    let shortest = g2.shortest_path();
+    let shortest = g.shortest_path().unwrap();
     Ok(format!("{}", shortest))
 }
 
 pub fn part2(input: &str) -> Result<String> {
     let m = map_reader::Map::parse(input);
     let g = graph::CaveGraph::from_map(m);
-    let g2 = g.compress();
     //return Ok(format!("{}", g2.dot()));
     Ok(format!("{}", 0))
 }
