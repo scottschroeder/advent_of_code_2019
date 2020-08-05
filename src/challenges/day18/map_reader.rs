@@ -1,4 +1,5 @@
 use super::{Key, Tile};
+use anyhow::anyhow as ah;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -13,23 +14,67 @@ pub(crate) struct LRNeighbors {
     pub(crate) r: Option<(usize, Tile)>,
 }
 
+const MAP_PATCH: [Tile; 9] = [
+    Tile::Start,
+    Tile::Wall,
+    Tile::Start,
+    Tile::Wall,
+    Tile::Wall,
+    Tile::Wall,
+    Tile::Start,
+    Tile::Wall,
+    Tile::Start,
+];
+
 impl Map {
     #[inline]
-    // pub fn ptoi(&self, x: usize, y: usize) -> Option<usize> {
-    //     let idx = y * self.width + x;
-    //     if x < self.width && idx < self.data.len() {
-    //         Some(idx)
-    //     } else {
-    //         None
-    //     }
-    // }
-    // #[inline]
-    // pub fn itop(&self, idx: usize) -> (usize, usize) {
-    //     (
-    //         idx % self.width,
-    //         idx / self.width,
-    //     )
-    // }
+    pub fn ptoi(&self, x: usize, y: usize) -> Option<usize> {
+        let idx = y * self.width + x;
+        if x < self.width && idx < self.data.len() {
+            Some(idx)
+        } else {
+            None
+        }
+    }
+    #[inline]
+    pub fn itop(&self, idx: usize) -> (usize, usize) {
+        (idx % self.width, idx / self.width)
+    }
+
+    pub fn split_map(&mut self) -> Result<(), anyhow::Error> {
+        let starts = self
+            .data
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| **t == Tile::Start)
+            .map(|(x, _)| x)
+            .collect::<Vec<_>>();
+
+        for idx in starts {
+            let (x, y) = self.itop(idx);
+            if x == 0 || y == 0 {
+                return Err(ah!("start position was at an edge"));
+            }
+            let tiles = (-1..=1)
+                .flat_map(|dy| (-1..=1).map(move |dx| (x as i32 + dx, y as i32 + dy)))
+                .map(|(x, y)| {
+                    self.ptoi(x as usize, y as usize)
+                        .ok_or_else(|| ah!("start neighbor was out of range"))
+                        .and_then(|tidx| {
+                            if tidx == idx || self.data[tidx] == Tile::Space {
+                                Ok(tidx)
+                            } else {
+                                Err(ah!("start-adjacent tile was not a space"))
+                            }
+                        })
+                })
+                .collect::<Result<Vec<usize>, _>>()?;
+            for (pidx, t) in tiles.iter().zip(MAP_PATCH.iter()) {
+                self.data[*pidx] = *t;
+            }
+        }
+        Ok(())
+    }
 
     pub fn walk_lr(&self) -> impl Iterator<Item = LRNeighbors> + '_ {
         let w = self.width;

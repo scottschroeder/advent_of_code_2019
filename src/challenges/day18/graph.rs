@@ -1,30 +1,44 @@
 use super::map_reader::Map;
 use super::{KeySet, Tile};
 use std::collections::HashMap;
+use std::fmt;
+use std::hash::Hash;
 
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::EdgeRef;
 use traverse::EdgeControl;
 
+// trait ExploreState : fmt::Debug + Copy + PartialEq + Hash{
+
+// }
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct ExploreState {
+pub(crate) struct SingleState {
     pos: NodeIndex,
     length: u32,
     keys: KeySet,
 }
 
-impl ExploreState {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct QuadState {
+    pos: [NodeIndex; 4],
+    active: u8,
+    length: u32,
+    keys: KeySet,
+}
+
+impl SingleState {
     fn cache_key(self) -> SingleCacheKey {
         SingleCacheKey((self.pos, self.keys))
     }
 }
 
-impl PartialOrd for ExploreState {
+impl PartialOrd for SingleState {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
-impl Ord for ExploreState {
+impl Ord for SingleState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         other
             .length
@@ -38,7 +52,6 @@ struct SingleCacheKey((NodeIndex, KeySet));
 
 pub(crate) struct CaveGraph {
     inner: StableGraph<Tile, u32, petgraph::Undirected>,
-    start: NodeIndex,
     all_keys: KeySet,
     map: Map,
     raw_to_nidx: Vec<NodeIndex>,
@@ -49,8 +62,7 @@ impl CaveGraph {
     fn compress(&mut self) {
         let mut g = self.inner.clone();
         g.clear_edges();
-        for nidx in self.inner.node_indices() {
-            let tile = self.inner.node_weight(nidx).unwrap();
+        for (nidx, tile) in self.nodes() {
             match tile {
                 Tile::Start | Tile::Key(_) | Tile::Door(_) => {
                     let m = traverse::dijkstra(&self.inner, nidx, |e| {
@@ -86,7 +98,7 @@ impl CaveGraph {
         });
         self.inner = g;
     }
-    pub(crate) fn explored_map(&self, explore: ExploreState) -> Map {
+    pub(crate) fn explored_map(&self, explore: SingleState) -> Map {
         let (idx, _) = self
             .raw_to_nidx
             .iter()
@@ -116,7 +128,6 @@ impl CaveGraph {
     pub(crate) fn from_map(m: Map) -> Self {
         let mut node_idx = Vec::with_capacity(m.data.len());
         let mut g = StableGraph::default();
-        let mut start = None;
         let mut max_nidx = 0;
         let mut all_keys = KeySet::new();
         for t in &m.data {
@@ -124,7 +135,6 @@ impl CaveGraph {
             max_nidx = std::cmp::max(max_nidx, idx.index());
             node_idx.push(idx);
             match t {
-                Tile::Start => start = Some(idx),
                 Tile::Key(k) => all_keys = all_keys.insert(*k),
                 _ => {}
             }
@@ -160,7 +170,6 @@ impl CaveGraph {
         let mut cg = CaveGraph {
             inner: g,
             map: m,
-            start: start.expect("graph must have a start tile"),
             all_keys,
             raw_to_nidx: node_idx,
             nidx_to_tile,
@@ -172,13 +181,24 @@ impl CaveGraph {
         format!("{:?}", petgraph::dot::Dot::new(&self.inner))
     }
 
+    fn nodes(&self) -> impl Iterator<Item = (NodeIndex, Tile)> + '_ {
+        self.inner
+            .node_indices()
+            .map(move |idx| (idx, *self.inner.node_weight(idx).unwrap()))
+    }
+
+    fn start(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.nodes()
+            .filter_map(|(idx, t)| if t == Tile::Start { Some(idx) } else { None })
+    }
+
     pub(crate) fn shortest_path(&self) -> Option<u32> {
         let mut shortest_distance = None;
         let mut distances = HashMap::new();
         let mut priority_queue = std::collections::BinaryHeap::new();
 
-        let start = ExploreState {
-            pos: self.start,
+        let start = SingleState {
+            pos: self.start().nth(0).unwrap(),
             length: 0,
             keys: KeySet::new(),
         };
@@ -220,7 +240,7 @@ impl CaveGraph {
                     if let Tile::Key(k) = t {
                         let keys = seen.insert(k);
                         if keys != seen {
-                            Some(ExploreState {
+                            Some(SingleState {
                                 pos: *n,
                                 length: c + explore.length,
                                 keys,
