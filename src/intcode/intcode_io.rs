@@ -120,6 +120,7 @@ impl<U, V> MultiIO<U, V> {
             first_done: false,
         }
     }
+    #[allow(dead_code)]
     pub fn split(self) -> (U, V) {
         (self.first, self.second)
     }

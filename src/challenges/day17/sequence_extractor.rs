@@ -55,7 +55,7 @@ fn assign_substrings<T: PartialEq>(data: &[T], seq: &Divide3<'_, T>) -> Vec<SubS
 }
 
 fn search3<T: PartialEq>(data: &[T], max_segment: usize) -> Option<Divide3<'_, T>> {
-    let mut a_blk = BlackoutSeq::new(data);
+    let a_blk = BlackoutSeq::new(data);
     let a_shortest = if let Some(a_shortest) = a_blk.shortest() {
         a_shortest
     } else {

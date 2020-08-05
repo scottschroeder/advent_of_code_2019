@@ -1,6 +1,5 @@
 use crate::{display::Point, intcode::run_intcode, util::parse_intcode};
 use anyhow::{anyhow as ah, Result};
-use itertools::Itertools;
 use sequence_extractor::{divide3, SubSeq3};
 use std::{collections::HashMap, fmt};
 
@@ -367,7 +366,7 @@ impl<'a> ScaffoldWalker<'a> {
         if let Some(src) = sub_walker.intersections.get_mut(&path.src) {
             match src.departed(path.outgoing()) {
                 Ok(Some(intersect)) => *src = intersect,
-                x => {
+                _ => {
                     return None;
                 }
             }
@@ -375,7 +374,7 @@ impl<'a> ScaffoldWalker<'a> {
         if let Some(dst) = sub_walker.intersections.get_mut(&path.dst) {
             match dst.arrived(path.incoming().reverse()) {
                 Ok(Some(intersect)) => *dst = intersect,
-                x => {
+                _ => {
                     return None;
                 }
             }

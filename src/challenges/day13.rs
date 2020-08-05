@@ -1,11 +1,8 @@
 use crate::challenges::day13::game::{Board, Screen, Tile};
-use crate::display::ImageNormal;
-use crate::intcode::intcode_io::{Input, VecIO};
+//use crate::display::ImageNormal;
 use crate::intcode::{run_intcode, IntCode};
 use crate::util::parse_intcode;
 use anyhow::Result;
-use itertools::Itertools;
-use std::io::Read;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
@@ -28,20 +25,20 @@ pub fn part2(input: &str) -> Result<String> {
         board.add(chunk[0] as i32, chunk[1] as i32, tile);
     }
 
-    let mut img = ImageNormal::create(&board.inner);
-    let screen = Screen::new(board, img);
+    //let img = ImageNormal::create(&board.inner);
+    let screen = Screen::new(board);
 
     // insert 2 quarters
     intcode[0] = 2;
     let mut ic = IntCode::new_from_device(intcode, screen);
     ic.run_till_end()?;
-    let (_, mut screen) = ic.emit();
+    let (_, screen) = ic.emit();
 
     Ok(format!("{}", screen.score))
 }
 
 mod game {
-    use crate::display::ImageNormal;
+    //use crate::display::ImageNormal;
     use crate::intcode::intcode_io::{Input, Output};
     use anyhow::Result;
     use std::collections::HashMap;
@@ -70,25 +67,25 @@ mod game {
 
     pub struct Screen {
         pub board: Board,
-        image: ImageNormal<Tile>,
+        // image: ImageNormal<Tile>,
         pub score: i64,
         instruction: Vec<i64>,
     }
 
     impl Screen {
-        pub(crate) fn new(board: Board, image: ImageNormal<Tile>) -> Screen {
+        pub(crate) fn new(board: Board /*image: ImageNormal<Tile>*/) -> Screen {
             Screen {
                 board,
-                image,
+                // image,
                 score: 0,
                 instruction: Vec::new(),
             }
         }
-        fn disp(&mut self) {
-            self.image.update(&self.board.inner);
-            println!("Score: {}", self.score);
-            println!("{}", self.image);
-        }
+        // fn disp(&mut self) {
+        //     self.image.update(&self.board.inner);
+        //     println!("Score: {}", self.score);
+        //     println!("{}", self.image);
+        // }
         fn update(&mut self, instr: i64) {
             self.instruction.push(instr);
             if self.instruction.len() == 3 {
@@ -137,7 +134,7 @@ mod game {
         pub fn off_by(&self) -> Option<i64> {
             let mut paddle = None;
             let mut ball = None;
-            for ((x, y), t) in self.inner.iter() {
+            for ((x, _), t) in self.inner.iter() {
                 match t {
                     Tile::Paddle => paddle = Some(*x),
                     Tile::Ball => ball = Some(*x),

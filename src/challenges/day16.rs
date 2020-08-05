@@ -1,8 +1,6 @@
 use crate::util::{digits_to_int, parse_digits};
 use anyhow::Result;
 use std::fmt;
-use std::fmt::{Error, Formatter};
-use std::hint::unreachable_unchecked;
 use std::iter;
 
 const SIGNAL_BASE: [i8; 4] = [0, 1, 0, -1];
@@ -73,7 +71,7 @@ struct Signal(Vec<i8>);
 
 impl Signal {
     fn parse(input: &str) -> Result<Signal> {
-        let mut signal = parse_digits(input)?
+        let signal = parse_digits(input)?
             .iter()
             .map(|x| *x as i8)
             .collect::<Vec<i8>>();
@@ -113,40 +111,25 @@ fn signal_round(input: &[i8]) -> Vec<i8> {
         .collect()
 }
 
-fn signal_round_calc(input: &[i8]) -> Vec<i8> {
-    input
-        .iter()
-        .enumerate()
-        .map(|(idx, _)| {
-            input
-                .iter()
-                .enumerate()
-                .map(|(inner_idx, x)| (*x * pattern_at(idx, inner_idx)) as i64)
-                .sum::<i64>()
-        })
-        .map(|s| (s.abs() % 10) as i8)
-        .collect()
-}
-
 fn generate_pattern(pos: usize) -> impl Iterator<Item = i8> {
     SIGNAL_BASE
-        .into_iter()
+        .iter()
         .cloned()
         .flat_map(move |x| iter::repeat(x).take(pos + 1))
         .cycle()
         .skip(1)
 }
 
-#[inline]
-fn pattern_at(pos: usize, idx: usize) -> i8 {
-    let x0 = (((idx + 1) / (pos + 1)) & 0b11) as i8;
-    ((2 - x0) * x0) % 2
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::challenges::test::*;
+
+    #[inline]
+    fn pattern_at(pos: usize, idx: usize) -> i8 {
+        let x0 = (((idx + 1) / (pos + 1)) & 0b11) as i8;
+        ((2 - x0) * x0) % 2
+    }
 
     #[test]
     fn day16part1() {

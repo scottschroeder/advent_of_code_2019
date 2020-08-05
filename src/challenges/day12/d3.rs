@@ -1,4 +1,4 @@
-use anyhow::{anyhow as ah, Error, Result};
+use anyhow::{anyhow as ah, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::{Ord, Ordering};

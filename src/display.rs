@@ -6,8 +6,6 @@ The size can be unknown
 */
 
 use std::fmt;
-use std::fmt::{Error, Formatter};
-use std::iter::FromIterator;
 use std::ops::{Add, Sub};
 
 #[derive(Default)]
@@ -23,22 +21,22 @@ pub trait VerticalOrientation: Default {
 
 impl VerticalOrientation for VON {
     #[inline]
-    fn offset(ymin: i32, ymax: i32, y: i32) -> i32 {
+    fn offset(_: i32, ymax: i32, y: i32) -> i32 {
         ymax - y
     }
     #[inline]
-    fn absolute(ymin: i32, ymax: i32, dy: i32) -> i32 {
+    fn absolute(_: i32, ymax: i32, dy: i32) -> i32 {
         ymax - dy
     }
 }
 
 impl VerticalOrientation for VOF {
     #[inline]
-    fn offset(ymin: i32, ymax: i32, y: i32) -> i32 {
+    fn offset(ymin: i32, _: i32, y: i32) -> i32 {
         y - ymin
     }
     #[inline]
-    fn absolute(ymin: i32, ymax: i32, dy: i32) -> i32 {
+    fn absolute(ymin: i32, _: i32, dy: i32) -> i32 {
         dy + ymin
     }
 }
@@ -115,7 +113,7 @@ pub struct Image<T, V> {
     frame: Frame,
     grid: bool,
     pub data: Vec<Option<T>>,
-    v: V,
+    _v: std::marker::PhantomData<V>,
 }
 
 impl<T, V> Image<T, V> {
@@ -135,12 +133,12 @@ impl<T: Clone, V: VerticalOrientation> Image<T, V> {
         T: 'a,
         P: 'a,
     {
-        let mut frame = size_frame(iter);
+        let frame = size_frame(iter);
         let mut img = Image {
             frame,
             grid: false,
             data: Vec::new(),
-            v: V::default(),
+            _v: std::marker::PhantomData::default(),
         };
         img.update(iter);
         img

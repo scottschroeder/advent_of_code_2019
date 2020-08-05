@@ -7,8 +7,6 @@ use clap::{Arg, ArgMatches, SubCommand};
 
 extern crate log;
 
-use std::sync::Arc;
-
 pub mod util;
 
 pub mod display;
@@ -150,8 +148,6 @@ fn main() -> Result<()> {
 }
 
 fn setup_logger(level: u64) {
-    use std::io::Write;
-
     let noisy_modules = &[
         "hyper",
         "mio",

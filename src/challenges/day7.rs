@@ -1,7 +1,6 @@
 use crate::challenges::day7::amplifier::AmplifierCircut;
-use crate::intcode::Int;
 use crate::util::parse_intcode;
-use anyhow::{anyhow as ah, Result};
+use anyhow::Result;
 use itertools::Itertools;
 
 pub fn part1(input: &str) -> Result<String> {

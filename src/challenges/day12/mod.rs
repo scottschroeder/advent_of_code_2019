@@ -1,5 +1,5 @@
 use self::d3::parse;
-use anyhow::{Error, Result};
+use anyhow::Result;
 
 pub(crate) mod d3;
 
@@ -7,7 +7,6 @@ mod simulation {
     use super::d3::D3;
     use crate::challenges::day12::d3::D3Dimm;
     use num::Integer;
-    use std::path::Iter;
 
     #[derive(Debug, Clone, Copy)]
     struct Moon {

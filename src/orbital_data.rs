@@ -27,7 +27,7 @@ mod transitive151 {
 
     impl TransitiveClosure {
         pub fn new(set: FixedBitSet, size: usize) -> TransitiveClosure {
-            let mut tc = TransitiveClosure {
+            let tc = TransitiveClosure {
                 inner: set,
                 width: size,
             };
@@ -94,10 +94,7 @@ impl<'a> OrbitalMap<'a> {
     pub fn shortest_path(&self, src: &str, dst: &str) -> Option<usize> {
         let undirected: GraphMap<&str, (), petgraph::Undirected> =
             GraphMap::from_edges(self.inner.all_edges());
-        let x = petgraph::algo::dijkstra(&undirected, src, Some(dst), |(s, d, _)| {
-            //log::trace!( "edge {} -> {}", s, d);
-            1
-        });
+        let x = petgraph::algo::dijkstra(&undirected, src, Some(dst), |_| 1);
         x.get("SAN").and_then(|x| {
             if *x >= 2 {
                 Some(x - 2 as usize)

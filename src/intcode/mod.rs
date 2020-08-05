@@ -26,6 +26,7 @@ mod intcode_mem {
 
     impl Memory {
         #[inline]
+        #[allow(dead_code)]
         fn len(&self) -> usize {
             self.inner.len()
         }
@@ -74,7 +75,7 @@ mod intcode_mem {
         use super::*;
         #[test]
         fn read_without_extend() {
-            let mut m = Memory::from(&[]);
+            let m = Memory::from(&[]);
             assert_eq!(m[0], 0);
             assert_eq!(m[10], 0);
             assert_eq!(m[100], 0);
@@ -236,7 +237,7 @@ mod test {
     use anyhow::Result;
 
     fn single_input_single_output(code: Vec<Int>, input: Int) -> Result<Int> {
-        let (mem, output) = run_intcode(code, vec![input])?;
+        let (_, output) = run_intcode(code, vec![input])?;
         Ok(output[0])
     }
 
@@ -402,7 +403,7 @@ mod test {
 
     #[test]
     fn advent_complete_intcode_copy_self() {
-        let mut code = vec![
+        let code = vec![
             109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
         ];
         let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
@@ -411,14 +412,14 @@ mod test {
 
     #[test]
     fn advent_complete_intcode_16digits() {
-        let mut code = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+        let code = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
         let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
         assert_eq!(output[0], 1219070632396864);
     }
     #[test]
     fn advent_complete_intcode_magic_number() {
         let magic = 1125899906842624;
-        let mut code = vec![104, magic, 99];
+        let code = vec![104, magic, 99];
         let (_, output) = run_intcode(code.clone(), vec![]).unwrap();
         assert_eq!(output[0], magic);
     }

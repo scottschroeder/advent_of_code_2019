@@ -2,7 +2,7 @@ use crate::util::parse_str;
 use anyhow::{anyhow as ah, Result};
 use num::Integer;
 use reaction_parser::parse_reaction_manifest;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 mod reaction_parser;
 
@@ -114,7 +114,7 @@ impl NanoFactory {
 
     fn search(&self, desired: &Molecule, limit: Quantity) -> i64 {
         let f_prime = |x: i64| {
-            let mut supply = self.make_n(desired, x);
+            let supply = self.make_n(desired, x);
             let x0 = supply.get(&desired) + x;
             let y0 = -supply.get(&limit.molecule);
             let slope = y0 as f64 / x0 as f64;

@@ -1,16 +1,16 @@
 use crate::challenges::day15::o2repair::Robot;
 use crate::display::ImageNormal;
-use crate::intcode::{run_intcode, IntCode};
+use crate::intcode::IntCode;
 use crate::util::parse_intcode;
 use anyhow::Result;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let mut ic = IntCode::new_from_device(intcode, Robot::new());
-    ic.run_till_end();
+    let _ = ic.run_till_end();
     let (_, robot) = ic.emit();
 
-    let mut img = ImageNormal::create(&robot.map.inner);
+    let img = ImageNormal::create(&robot.map.inner);
     //img.display_grid(true);
     log::info!("{}", img);
     let o2 = robot.map.o2system().unwrap();
@@ -21,7 +21,7 @@ pub fn part1(input: &str) -> Result<String> {
 pub fn part2(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;
     let mut ic = IntCode::new_from_device(intcode, Robot::new());
-    ic.run_till_end();
+    let _ = ic.run_till_end();
     let (_, robot) = ic.emit();
 
     let o2 = robot.map.o2system().unwrap();
@@ -35,7 +35,6 @@ mod o2repair {
     use anyhow::{anyhow as ah, Result};
     use std::collections::HashMap;
     use std::fmt;
-    use std::sync::mpsc::RecvTimeoutError::Timeout;
 
     type Graph = petgraph::graphmap::GraphMap<Point, (), petgraph::Undirected>;
 
@@ -140,7 +139,7 @@ mod o2repair {
 
     impl Deck {
         fn new() -> Deck {
-            let mut inner = HashMap::new();
+            let inner = HashMap::new();
             let mut d = Deck {
                 inner,
                 graph: Graph::new(),

@@ -1,11 +1,10 @@
 use crate::display::ImageNormal;
-use crate::intcode::intcode_io::{FusedIO, Input, Output};
-use crate::intcode::{run_intcode, IntCode};
+use crate::intcode::intcode_io::{Input, Output};
+use crate::intcode::IntCode;
 use crate::util::parse_intcode;
 use anyhow::{Error, Result};
 use std::collections::HashMap;
 use std::fmt;
-use std::fmt::Formatter;
 
 pub fn part1(input: &str) -> Result<String> {
     let intcode = parse_intcode(input)?;

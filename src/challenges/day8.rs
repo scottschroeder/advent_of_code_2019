@@ -14,7 +14,7 @@ pub fn part1(input: &str) -> Result<String> {
         }
     }
     let img_cs = min_layer
-        .map(|(c0, c1, c2)| c1 * c2)
+        .map(|(_, c1, c2)| c1 * c2)
         .expect("no layers in image");
 
     Ok(format!("{}", img_cs))
@@ -43,7 +43,6 @@ fn checksum_layer(data: &[u8]) -> (u64, u64, u64) {
 }
 
 mod space_image_format {
-    use anyhow::{anyhow as ah, Result};
     use std::fmt;
 
     pub struct Layers<'a> {
@@ -151,7 +150,7 @@ mod space_image_format {
     impl Image {
         pub fn new(data: Vec<u8>, width: usize, height: usize) -> Image {
             let layer_size = width * height;
-            let depth = (data.len() / layer_size);
+            let depth = data.len() / layer_size;
 
             Image {
                 data,
