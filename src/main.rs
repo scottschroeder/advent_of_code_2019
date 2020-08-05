@@ -125,6 +125,10 @@ pub mod challenges {
         pub const DAY18_EX3: &str = include_str!("../input/day18_ex3");
         pub const DAY18_EX4: &str = include_str!("../input/day18_ex4");
         pub const DAY18_EX5: &str = include_str!("../input/day18_ex5");
+        pub const DAY18_EX6: &str = include_str!("../input/day18_ex6");
+        pub const DAY18_EX7: &str = include_str!("../input/day18_ex7");
+        pub const DAY18_EX8: &str = include_str!("../input/day18_ex8");
+        pub const DAY18_EX9: &str = include_str!("../input/day18_ex9");
     }
 }
 

@@ -8,28 +8,113 @@ use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::EdgeRef;
 use traverse::EdgeControl;
 
-// trait ExploreState : fmt::Debug + Copy + PartialEq + Hash{
+pub(crate) trait ExploreState:
+    fmt::Debug + Clone + PartialEq + PartialOrd + Ord + IntoIterator<Item = (usize, NodeIndex)>
+{
+    type CacheKey: Copy + PartialEq + Eq + Hash;
+    fn length(&self) -> u32;
+    fn keys(&self) -> KeySet;
+    fn update(&self, idx: usize, pos: NodeIndex, length: u32, keys: KeySet) -> Self;
+    fn cache_key(&self) -> Self::CacheKey;
+}
 
-// }
+impl ExploreState for SingleState {
+    type CacheKey = (NodeIndex, KeySet);
+    #[inline]
+    fn length(&self) -> u32 {
+        self.length
+    }
+    #[inline]
+    fn keys(&self) -> KeySet {
+        self.keys
+    }
+    #[inline]
+    fn cache_key(&self) -> Self::CacheKey {
+        (self.pos, self.keys)
+    }
+    fn update(&self, _: usize, pos: NodeIndex, length: u32, keys: KeySet) -> Self {
+        SingleState {
+            pos,
+            length: self.length + length,
+            keys,
+        }
+    }
+}
+
+impl IntoIterator for SingleState {
+    type Item = (usize, NodeIndex);
+    type IntoIter = std::iter::Once<(usize, NodeIndex)>;
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once((0, self.pos))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct SingleState {
-    pos: NodeIndex,
-    length: u32,
-    keys: KeySet,
+    pub(crate) pos: NodeIndex,
+    pub(crate) length: u32,
+    pub(crate) keys: KeySet,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+type QuadNodeIndex = [NodeIndex; 4];
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct QuadState {
-    pos: [NodeIndex; 4],
-    active: u8,
-    length: u32,
-    keys: KeySet,
+    pub(crate) pos: QuadNodeIndex,
+    pub(crate) length: u32,
+    pub(crate) keys: KeySet,
 }
 
-impl SingleState {
-    fn cache_key(self) -> SingleCacheKey {
-        SingleCacheKey((self.pos, self.keys))
+impl ExploreState for QuadState {
+    type CacheKey = (QuadNodeIndex, KeySet);
+    #[inline]
+    fn length(&self) -> u32 {
+        self.length
+    }
+    #[inline]
+    fn keys(&self) -> KeySet {
+        self.keys
+    }
+    #[inline]
+    fn cache_key(&self) -> Self::CacheKey {
+        (self.pos, self.keys)
+    }
+    fn update(&self, idx: usize, pos: NodeIndex, length: u32, keys: KeySet) -> Self {
+        let mut new_nodes = self.pos.clone();
+        new_nodes[idx] = pos;
+        QuadState {
+            pos: new_nodes,
+            length: self.length + length,
+            keys,
+        }
+    }
+}
+
+pub(crate) struct QuadIter {
+    inner: QuadNodeIndex,
+    idx: usize,
+}
+
+impl Iterator for QuadIter {
+    type Item = (usize, NodeIndex);
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut ret = None;
+        if self.idx < 4 {
+            ret = Some((self.idx, self.inner[self.idx]));
+            self.idx += 1;
+        }
+        return ret;
+    }
+}
+
+impl IntoIterator for QuadState {
+    type Item = (usize, NodeIndex);
+    type IntoIter = QuadIter;
+    fn into_iter(self) -> Self::IntoIter {
+        QuadIter {
+            inner: self.pos.clone(),
+            idx: 0,
+        }
     }
 }
 
@@ -47,8 +132,19 @@ impl Ord for SingleState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct SingleCacheKey((NodeIndex, KeySet));
+impl PartialOrd for QuadState {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for QuadState {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .length
+            .cmp(&self.length)
+            .then(self.keys.len().cmp(&other.keys.len()))
+    }
+}
 
 pub(crate) struct CaveGraph {
     inner: StableGraph<Tile, u32, petgraph::Undirected>,
@@ -98,31 +194,33 @@ impl CaveGraph {
         });
         self.inner = g;
     }
-    pub(crate) fn explored_map(&self, explore: SingleState) -> Map {
-        let (idx, _) = self
-            .raw_to_nidx
-            .iter()
-            .enumerate()
-            .find(|(_, n)| **n == explore.pos)
-            .unwrap();
+    pub(crate) fn explored_map<S: ExploreState>(&self, explore: S) -> Map {
         let mut m = self.map.clone();
         for t in &mut m.data {
             match t {
                 Tile::Start => *t = Tile::Space,
                 Tile::Door(k) => {
-                    if explore.keys.contains(*k) {
+                    if explore.keys().contains(*k) {
                         *t = Tile::Space
                     }
                 }
                 Tile::Key(k) => {
-                    if explore.keys.contains(*k) {
+                    if explore.keys().contains(*k) {
                         *t = Tile::Space
                     }
                 }
                 _ => {}
             }
         }
-        m.data[idx] = Tile::Start;
+        for idx in explore.into_iter().map(|(_, n)| n) {
+            let (idx, _) = self
+                .raw_to_nidx
+                .iter()
+                .enumerate()
+                .find(|(_, n)| **n == idx)
+                .unwrap();
+            m.data[idx] = Tile::Start;
+        }
         m
     }
     pub(crate) fn from_map(m: Map) -> Self {
@@ -177,6 +275,7 @@ impl CaveGraph {
         cg.compress();
         cg
     }
+
     pub(crate) fn dot(&self) -> String {
         format!("{:?}", petgraph::dot::Dot::new(&self.inner))
     }
@@ -187,21 +286,15 @@ impl CaveGraph {
             .map(move |idx| (idx, *self.inner.node_weight(idx).unwrap()))
     }
 
-    fn start(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+    pub(crate) fn start(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.nodes()
             .filter_map(|(idx, t)| if t == Tile::Start { Some(idx) } else { None })
     }
 
-    pub(crate) fn shortest_path(&self) -> Option<u32> {
+    pub(crate) fn shortest_path<S: ExploreState>(&self, start: S) -> Option<u32> {
         let mut shortest_distance = None;
         let mut distances = HashMap::new();
         let mut priority_queue = std::collections::BinaryHeap::new();
-
-        let start = SingleState {
-            pos: self.start().nth(0).unwrap(),
-            length: 0,
-            keys: KeySet::new(),
-        };
 
         log::info!("Looking for all keys in {:?}", self.all_keys);
 
@@ -211,40 +304,42 @@ impl CaveGraph {
             match distances.entry(explore.cache_key()) {
                 std::collections::hash_map::Entry::Occupied(mut o) => {
                     let prev = o.get_mut();
-                    if *prev <= explore.length {
+                    if *prev <= explore.length() {
                         continue;
                     } else {
-                        *prev = explore.length;
+                        *prev = explore.length();
                     }
                 }
-                std::collections::hash_map::Entry::Vacant(mut v) => {
-                    v.insert(explore.length);
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(explore.length());
                 }
             }
             if let Some(shortest) = shortest_distance {
-                if shortest <= explore.length {
+                if shortest <= explore.length() {
                     continue;
                 }
             }
             log::debug!("TOTAL: {} Current {:?}", priority_queue.len(), explore);
-            log::trace!("\n{}", self.explored_map(explore));
-            let seen = explore.keys;
+            log::trace!("\n{}", self.explored_map(explore.clone()));
+            let seen = explore.keys();
 
-            let m = traverse::dijkstra(&self.inner, explore.pos, |e| {
-                let dst = e.target();
-                self.edge_cost(dst, seen, *e.weight())
-            });
-            m.iter()
-                .filter_map(|(n, c)| {
+            explore
+                .clone()
+                .into_iter()
+                .flat_map(|(state_idx, pos)| {
+                    traverse::dijkstra(&self.inner, pos, |e| {
+                        let dst = e.target();
+                        self.edge_cost(dst, seen, *e.weight())
+                    })
+                    .into_iter()
+                    .map(move |(k, v)| (state_idx, k, v))
+                })
+                .filter_map(|(state_idx, n, c)| {
                     let t: Tile = self.nidx_to_tile[n.index()];
                     if let Tile::Key(k) = t {
                         let keys = seen.insert(k);
                         if keys != seen {
-                            Some(SingleState {
-                                pos: *n,
-                                length: c + explore.length,
-                                keys,
-                            })
+                            Some(explore.update(state_idx, n, c, keys))
                         } else {
                             None
                         }
@@ -253,10 +348,10 @@ impl CaveGraph {
                     }
                 })
                 .filter(|e| {
-                    if e.keys == self.all_keys {
-                        let prev = shortest_distance.get_or_insert(e.length);
-                        if e.length <= *prev {
-                            *prev = e.length;
+                    if e.keys() == self.all_keys {
+                        let prev = shortest_distance.get_or_insert(e.length());
+                        if e.length() <= *prev {
+                            *prev = e.length();
                             log::info!("Shortish Path {:?}", e);
                         }
                         false

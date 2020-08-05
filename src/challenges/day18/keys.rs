@@ -24,7 +24,7 @@ impl fmt::Debug for Key {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct KeySet(u32);
 
 impl KeySet {
