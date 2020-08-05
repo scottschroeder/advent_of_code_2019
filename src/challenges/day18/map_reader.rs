@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn parse_maps() {
-        for e in EXAMPLES.into_iter() {
+        for e in EXAMPLES.iter() {
             Map::parse(e);
         }
     }
