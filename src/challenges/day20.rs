@@ -4,18 +4,117 @@ pub fn part1(input: &str) -> Result<String> {
     let m = map::Map::parse(input);
     let portals = m.labels();
     log::debug!("{:#?}", portals);
-    Ok(format!("{}", 0))
+    let g = graph::DonutGraph::from_map(m);
+    let min = g.shortest_path().unwrap();
+    //Ok(format!("{}", g.dot()))
+    Ok(format!("{}", min))
 }
 
 pub fn part2(input: &str) -> Result<String> {
+    let m = map::Map::parse(input);
+    let portals = m.labels();
+    let sp = |idx: usize| {
+        for (c, v0) in portals.iter().flat_map(|(p, v)| {
+            let map::Portal((c0, c1)) = p;
+            v.iter().map(move |v0| (c0.to_ascii_lowercase(), *v0))
+        }) {
+            if v0 == idx {
+                return Some(c);
+            }
+        }
+        None
+    };
+
+    for (idx, t) in m.data.iter().enumerate() {
+        if idx > 0 && idx % m.width == 0 {
+            println!("")
+        }
+        let c = match t {
+            map::Tile::Dead => ' ',
+            map::Tile::Label(l) => *l,
+            map::Tile::Wall => '#',
+            map::Tile::Space => sp(idx).unwrap_or('.'),
+        };
+        print!("{}", c)
+    }
+
     Ok(format!("{}", 0))
 }
 
 mod graph {
-    use petgraph::stable_graph::{NodeIndex, StableGraph};
+    use super::map::{Map, Portal, Tile};
+    use petgraph::graph::{Graph, NodeIndex};
+    use std::collections::BTreeMap;
 
     pub(crate) struct DonutGraph {
-        inner: StableGraph<(), u32, petgraph::Undirected>,
+        inner: Graph<(), u32, petgraph::Undirected>,
+        aa: NodeIndex,
+        zz: NodeIndex,
+    }
+
+    impl DonutGraph {
+        pub(crate) fn shortest_path(&self) -> Option<usize> {
+            let m = petgraph::algo::dijkstra(&self.inner, self.aa, Some(self.zz), |_| 1usize);
+            m.get(&self.zz).cloned()
+        }
+        pub(crate) fn from_map(m: Map) -> Self {
+            let mut g = Graph::default();
+            let mut node_map = BTreeMap::new();
+            let mut aa = None;
+            let mut zz = None;
+            for (idx, t) in m.data.iter().enumerate() {
+                if let Tile::Space = *t {
+                    let nidx = g.add_node(());
+                    node_map.insert(idx, nidx);
+                }
+            }
+            let ntoe = |src, dst| {
+                node_map
+                    .get(&src)
+                    .and_then(|s| node_map.get(&dst).map(|d| (s, d)))
+                    .unwrap()
+            };
+            for (src, dst) in m.edges().map(|(src, dst)| ntoe(src, dst)) {
+                g.add_edge(*src, *dst, 1);
+            }
+
+            log::trace!("{:#?}", node_map);
+
+            for (p, v) in m.labels() {
+                log::trace!("p {:?}, v: {:?}", p, v);
+                if p == Portal(('A', 'A')) {
+                    aa = Some(node_map.get(&v[0]).unwrap());
+                    log::trace!("set aa to {:?}", aa);
+                } else if p == Portal(('Z', 'Z')) {
+                    zz = Some(node_map.get(&v[0]).unwrap());
+                    log::trace!("set zz to {:?}", zz);
+                } else {
+                    for (i, idx) in v.iter().enumerate() {
+                        for jdx in v.iter().skip(i + 1) {
+                            let (src, dst) = ntoe(*idx, *jdx);
+                            log::trace!(
+                                "insert portal edge {:?} {:?} {:?} -> {:?}",
+                                p,
+                                v,
+                                src,
+                                dst
+                            );
+                            g.add_edge(*src, *dst, 1);
+                        }
+                    }
+                }
+            }
+
+            DonutGraph {
+                inner: g,
+                aa: *aa.expect("no AA in map"),
+                zz: *zz.expect("no ZZ in map"),
+            }
+        }
+
+        pub(crate) fn dot(&self) -> String {
+            format!("{:?}", petgraph::dot::Dot::new(&self.inner))
+        }
     }
 }
 
@@ -30,9 +129,9 @@ mod map {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub(crate) struct Portal((char, char));
+    pub(crate) struct Portal(pub (char, char));
 
-    #[derive(Clone, Copy)]
+    #[derive(Debug, Clone, Copy)]
     enum Direction {
         Up,
         Down,
@@ -68,8 +167,29 @@ mod map {
     }
 
     pub(crate) struct Map {
-        data: Vec<Tile>,
-        width: usize,
+        pub(crate) data: Vec<Tile>,
+        pub(crate) width: usize,
+    }
+
+    struct Pair<T> {
+        first: Option<T>,
+        second: Option<T>,
+    }
+
+    impl<T> Pair<T> {
+        fn new(first: T, second: T) -> Pair<T> {
+            Pair {
+                first: Some(first),
+                second: Some(second),
+            }
+        }
+    }
+
+    impl<T> Iterator for Pair<T> {
+        type Item = T;
+        fn next(&mut self) -> Option<Self::Item> {
+            self.first.take().or_else(|| self.second.take())
+        }
     }
 
     impl Map {
@@ -110,6 +230,37 @@ mod map {
             m
         }
 
+        pub(crate) fn edges(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+            let w = self.width;
+            self.data
+                .iter()
+                .enumerate()
+                .flat_map(move |(idx, t)| {
+                    let r_idx = idx + 1;
+                    let l_idx = idx + w;
+                    let l = if l_idx < self.data.len() {
+                        Some((idx, *t, l_idx, self.data[l_idx]))
+                    } else {
+                        None
+                    };
+                    let r = if r_idx % w != 0 && r_idx < self.data.len() {
+                        Some((idx, *t, r_idx, self.data[r_idx]))
+                    } else {
+                        None
+                    };
+
+                    Pair::new(l, r)
+                })
+                .filter_map(|x| x)
+                .filter_map(|(idx, it, jdx, jt)| {
+                    if it == Tile::Space && jt == Tile::Space {
+                        Some((idx, jdx))
+                    } else {
+                        None
+                    }
+                })
+        }
+
         fn try_label(&self, idx: usize) -> Option<(Portal, usize)> {
             let l1 = if let Tile::Label(c) = self.data[idx] {
                 c
@@ -126,6 +277,17 @@ mod map {
             let mut d = Direction::Up;
             for _ in 0..3 {
                 let t = fetch(d)?;
+                let xy = d.translate(x, y);
+                log::trace!(
+                    "({}, {}) * {:?} => ({}, {}), {:?} => {:?}",
+                    x,
+                    y,
+                    d,
+                    xy.0,
+                    xy.1,
+                    self.data[idx],
+                    t
+                );
                 match t {
                     Tile::Dead => d = d.rotate(),
                     Tile::Label(c) => {
@@ -141,14 +303,14 @@ mod map {
             }
             let l2 = l2?;
             let adj = adj?;
-            let spc = self.ptoi(d.translate(x, y))?;
-
-            Some(match adj {
+            let spc = self.ptoi(adj.translate(x, y))?;
+            let lbl = match adj {
                 Direction::Up => (Portal((l1, l2)), spc),
                 Direction::Down => (Portal((l2, l1)), spc),
                 Direction::Left => (Portal((l1, l2)), spc),
                 Direction::Right => (Portal((l2, l1)), spc),
-            })
+            };
+            Some(lbl)
         }
 
         #[inline]
@@ -180,7 +342,7 @@ mod test {
 
     #[test]
     fn verify_part1() {
-        assert_eq!(part1(DAY20_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part1(DAY20_INPUT).unwrap().as_str(), "642")
     }
 
     #[test]
