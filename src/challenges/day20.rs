@@ -2,9 +2,7 @@ use anyhow::Result;
 
 pub fn part1(input: &str) -> Result<String> {
     let m = map::Map::parse(input);
-    let portals = m.labels();
-    log::debug!("{:#?}", portals);
-    let g = graph::DonutGraph::from_map(m);
+    let g = graph::DonutGraph::from_map(m)?;
     let min = g.shortest_path().unwrap();
     //Ok(format!("{}", g.dot()))
     Ok(format!("{}", min))
@@ -12,31 +10,6 @@ pub fn part1(input: &str) -> Result<String> {
 
 pub fn part2(input: &str) -> Result<String> {
     let m = map::Map::parse(input);
-    let portals = m.labels();
-    let sp = |idx: usize| {
-        for (c, v0) in portals.iter().flat_map(|(p, v)| {
-            let map::Portal((c0, c1)) = p;
-            v.iter().map(move |v0| (c0.to_ascii_lowercase(), *v0))
-        }) {
-            if v0 == idx {
-                return Some(c);
-            }
-        }
-        None
-    };
-
-    for (idx, t) in m.data.iter().enumerate() {
-        if idx > 0 && idx % m.width == 0 {
-            println!("")
-        }
-        let c = match t {
-            map::Tile::Dead => ' ',
-            map::Tile::Label(l) => *l,
-            map::Tile::Wall => '#',
-            map::Tile::Space => sp(idx).unwrap_or('.'),
-        };
-        print!("{}", c)
-    }
 
     Ok(format!("{}", 0))
 }
@@ -57,7 +30,7 @@ mod graph {
             let m = petgraph::algo::dijkstra(&self.inner, self.aa, Some(self.zz), |_| 1usize);
             m.get(&self.zz).cloned()
         }
-        pub(crate) fn from_map(m: Map) -> Self {
+        pub(crate) fn from_map(m: Map) -> anyhow::Result<Self> {
             let mut g = Graph::default();
             let mut node_map = BTreeMap::new();
             let mut aa = None;
@@ -80,36 +53,34 @@ mod graph {
 
             log::trace!("{:#?}", node_map);
 
-            for (p, v) in m.labels() {
-                log::trace!("p {:?}, v: {:?}", p, v);
+            for (p, gates) in m.labels()? {
+                log::trace!("{:?}, v: {:?}", p, gates);
                 if p == Portal(('A', 'A')) {
-                    aa = Some(node_map.get(&v[0]).unwrap());
+                    aa = Some(node_map.get(&gates.outer.unwrap()).unwrap());
                     log::trace!("set aa to {:?}", aa);
                 } else if p == Portal(('Z', 'Z')) {
-                    zz = Some(node_map.get(&v[0]).unwrap());
+                    zz = Some(node_map.get(&gates.outer.unwrap()).unwrap());
                     log::trace!("set zz to {:?}", zz);
                 } else {
-                    for (i, idx) in v.iter().enumerate() {
-                        for jdx in v.iter().skip(i + 1) {
-                            let (src, dst) = ntoe(*idx, *jdx);
-                            log::trace!(
-                                "insert portal edge {:?} {:?} {:?} -> {:?}",
-                                p,
-                                v,
-                                src,
-                                dst
-                            );
-                            g.add_edge(*src, *dst, 1);
-                        }
-                    }
+                    let inner = gates.inner.unwrap();
+                    let outer = gates.outer.unwrap();
+                    let (src, dst) = ntoe(inner, outer);
+                    log::trace!(
+                        "insert portal edge {:?} {:?} {:?} -> {:?}",
+                        p,
+                        gates,
+                        src,
+                        dst
+                    );
+                    g.add_edge(*src, *dst, 1);
                 }
             }
 
-            DonutGraph {
+            Ok(DonutGraph {
                 inner: g,
                 aa: *aa.expect("no AA in map"),
                 zz: *zz.expect("no ZZ in map"),
-            }
+            })
         }
 
         pub(crate) fn dot(&self) -> String {
@@ -120,6 +91,7 @@ mod graph {
 
 mod map {
     use std::collections::HashMap;
+    use std::fmt;
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub(crate) enum Tile {
         Dead,
@@ -128,8 +100,20 @@ mod map {
         Space,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
     pub(crate) struct Portal(pub (char, char));
+
+    impl fmt::Debug for Portal {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "Portal({}{})", self.0.0, self.0.1)
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Default)]
+    pub(crate) struct PortalGates {
+        pub outer: Option<usize>,
+        pub inner: Option<usize>,
+    }
 
     #[derive(Debug, Clone, Copy)]
     enum Direction {
@@ -166,9 +150,11 @@ mod map {
         }
     }
 
+    #[derive(Debug)]
     pub(crate) struct Map {
         pub(crate) data: Vec<Tile>,
         pub(crate) width: usize,
+        pub(crate) bottom_wall: usize,
     }
 
     struct Pair<T> {
@@ -196,6 +182,7 @@ mod map {
         pub(crate) fn parse(s: &str) -> Map {
             let mut width = None;
             let mut data = Vec::with_capacity(s.len());
+            let mut last_wall = 0;
 
             for (idx, c) in s.chars().enumerate() {
                 let t = match c {
@@ -203,7 +190,10 @@ mod map {
                         width.get_or_insert(idx);
                         continue;
                     }
-                    '#' => Tile::Wall,
+                    '#' => {
+                        last_wall = data.len();
+                        Tile::Wall
+                    }
                     '.' => Tile::Space,
                     'A'..='Z' => Tile::Label(c),
                     ' ' => Tile::Dead,
@@ -211,23 +201,50 @@ mod map {
                 };
                 data.push(t);
             }
+            let width = width.unwrap_or_else(|| data.len());
             Map {
-                width: width.unwrap_or_else(|| data.len()),
                 data,
+                width,
+                bottom_wall: last_wall / width,
             }
         }
-        pub(crate) fn labels(&self) -> HashMap<Portal, Vec<usize>> {
+        pub(crate) fn labels(&self) -> anyhow::Result<HashMap<Portal, PortalGates>> {
             let mut m = HashMap::new();
-            for (p, spc) in self
+            for (p, spc, is_outer) in self
                 .data
                 .iter()
                 .enumerate()
-                .filter_map(|(idx, t)| self.try_label(idx))
+                .filter_map(|(idx, _)| self.try_label(idx))
             {
-                let v = m.entry(p).or_insert_with(|| Vec::with_capacity(2));
-                v.push(spc);
+                let v = m.entry(p).or_insert_with(|| PortalGates::default());
+                let (x, y) = self.itop(spc);
+                log::trace!(
+                    "{:?} spc:{:?} p:({}, {}) outer:{:?}",
+                    p,
+                    spc,
+                    x,
+                    y,
+                    is_outer
+                );
+                if is_outer {
+                    v.outer = Some(spc)
+                } else {
+                    v.inner = Some(spc)
+                }
             }
-            m
+            for (p, g) in &m {
+                if *p == Portal(('A', 'A')) || *p == Portal(('Z', 'Z')) {
+                    continue;
+                }
+                if g.inner.is_none() || g.outer.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "portal {:?} did not have two gates: {:?}",
+                        p,
+                        g
+                    ));
+                }
+            }
+            Ok(m)
         }
 
         pub(crate) fn edges(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
@@ -261,7 +278,21 @@ mod map {
                 })
         }
 
-        fn try_label(&self, idx: usize) -> Option<(Portal, usize)> {
+        #[inline]
+        fn is_outer_wall(&self, p: (i32, i32)) -> bool {
+            /*
+            ......
+            ......
+            ..##..
+            ..##..
+            ......
+            ......
+            */
+            let (x, y) = p;
+            x == 2 || y == 2 || y == self.bottom_wall as i32 || (x == (self.width as i32 - 3))
+        }
+
+        fn try_label(&self, idx: usize) -> Option<(Portal, usize, bool)> {
             let l1 = if let Tile::Label(c) = self.data[idx] {
                 c
             } else {
@@ -303,14 +334,15 @@ mod map {
             }
             let l2 = l2?;
             let adj = adj?;
-            let spc = self.ptoi(adj.translate(x, y))?;
-            let lbl = match adj {
-                Direction::Up => (Portal((l1, l2)), spc),
-                Direction::Down => (Portal((l2, l1)), spc),
-                Direction::Left => (Portal((l1, l2)), spc),
-                Direction::Right => (Portal((l2, l1)), spc),
+            let spc_p = adj.translate(x, y);
+            let spc = self.ptoi(spc_p)?;
+            let portal = match adj {
+                Direction::Up => Portal((l1, l2)),
+                Direction::Down => Portal((l2, l1)),
+                Direction::Left => Portal((l1, l2)),
+                Direction::Right => Portal((l2, l1)),
             };
-            Some(lbl)
+            Some((portal, spc, self.is_outer_wall(spc_p)))
         }
 
         #[inline]
