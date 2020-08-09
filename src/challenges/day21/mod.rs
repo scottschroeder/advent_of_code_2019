@@ -4,24 +4,30 @@ use std::fmt;
 use anyhow::{anyhow as ah, Result};
 
 const PROG_PT1: &str = include_str!("part1");
+const PROG_PT2: &str = include_str!("part2");
 
 pub fn part1(input: &str) -> Result<String> {
-    let intcode = parse_intcode(input)?;
-    let program = compile(PROG_PT1);
+    let score = run_program(input, PROG_PT1)?;
+    Ok(format!("{}", score))
+}
+
+pub fn part2(input: &str) -> Result<String> {
+    let score = run_program(input, PROG_PT2)?;
+    Ok(format!("{}", score))
+}
+
+pub fn run_program(intcode: &str, program: &str) -> Result<i64> {
+    let intcode = parse_intcode(intcode)?;
+    let program = compile(program);
+
     let (_, out) = run_intcode(intcode, program)?;
     let last = *out.last().unwrap();
     if last > 127 {
-        Ok(format!("{}", last))
+        Ok(last)
     } else {
         log::error!("{}", SpringError(out.as_slice()));
         Err(ah!("intcode program failed"))
     }
-}
-
-pub fn part2(input: &str) -> Result<String> {
-    let intcode = parse_intcode(input)?;
-    let (_, out) = run_intcode(intcode, vec![2])?;
-    Ok(format!("{}", out[0]))
 }
 
 struct SpringError<'a>(&'a [i64]);
@@ -51,6 +57,6 @@ mod test {
 
     #[test]
     fn verify_part2() {
-        assert_eq!(part2(DAY21_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY21_INPUT).unwrap().as_str(), "1137899149")
     }
 }
