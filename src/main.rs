@@ -37,6 +37,7 @@ pub mod challenges {
     pub mod day19;
 
     pub mod day20;
+    pub mod day21;
 
     use anyhow::Result;
     use clap::ArgMatches;
@@ -90,6 +91,8 @@ pub mod challenges {
             (20, 1) => day20::part1(&input)?,
             (20, 2) => day20::part2(&input)?,
             (20, 3) => day20::part3(&input)?,
+            (21, 1) => day21::part1(&input)?,
+            (21, 2) => day21::part2(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
@@ -141,6 +144,7 @@ pub mod challenges {
         pub const DAY20_EX1: &str = include_str!("../input/day20_ex1");
         pub const DAY20_EX2: &str = include_str!("../input/day20_ex2");
         pub const DAY20_EX3: &str = include_str!("../input/day20_ex3");
+        pub const DAY21_INPUT: &str = include_str!("../input/day21");
     }
 }
 
