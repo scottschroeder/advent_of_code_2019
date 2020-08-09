@@ -10,6 +10,13 @@ pub fn part2(input: &str) -> Result<String> {
     Ok(format!("{}", min))
 }
 
+pub fn part3(input: &str) -> Result<String> {
+    let m = map::Map::parse(input);
+    let g = graph::DonutGraph::from_map(m)?;
+
+    Ok(format!("{}", g.dot()))
+}
+
 pub fn shortest_path(input: &str, recurse: bool) -> anyhow::Result<usize> {
     let m = map::Map::parse(input);
     let mut g = graph::DonutGraph::from_map(m)?;
@@ -21,21 +28,22 @@ pub fn shortest_path(input: &str, recurse: bool) -> anyhow::Result<usize> {
 
 mod graph {
     use super::map::{Map, Portal, Tile};
-    use petgraph::graph::{
-        DefaultIx, EdgeIndex, EdgeReferences, Edges, Graph, Neighbors, NodeIndex,
+    use crate::graph::traverse::{dijkstra, EdgeControl};
+    use petgraph::stable_graph::{
+        EdgeIndex, EdgeReferences, Edges, Neighbors, NodeIndex, StableGraph,
+    };
+    use petgraph::visit::{
+        Data, EdgeRef, GraphBase, IntoEdgeReferences, IntoEdges, IntoNeighbors, VisitMap, Visitable,
     };
     use std::collections::{BTreeMap, HashSet};
     use std::hash::Hash;
 
-    use petgraph::visit::{
-        Data, EdgeRef, GraphBase, IntoEdgeReferences, IntoEdges, IntoNeighbors, VisitMap, Visitable,
-    };
-
     #[derive(Debug, Clone, Copy)]
     pub enum NodeW {
         Space,
-        Outer(NodeIndex),
-        Inner(NodeIndex),
+        Terminal,
+        Outer(Portal),
+        Inner(Portal),
     }
 
     type EdgeW = u32;
@@ -56,7 +64,7 @@ mod graph {
         depth: u8,
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Debug, Clone, Copy)]
     pub struct RDEdgeRef<'a> {
         src: DGNodeId,
         dst: DGNodeId,
@@ -122,31 +130,37 @@ mod graph {
         type Item = RDEdgeRef<'a>;
         fn next(&mut self) -> Option<Self::Item> {
             while let Some(x) = self.inner.next() {
-                let mut target = x.target();
+                let source = x.source();
+                let target = x.target();
+                let src_w = self.graph.inner.node_weight(source).unwrap();
                 let tgt_w = self.graph.inner.node_weight(target).unwrap();
                 let mut dst_depth = self.depth;
 
-                match tgt_w {
-                    NodeW::Space => {}
-                    NodeW::Outer(n) => {
-                        target = *n;
-                        if self.graph.recurse {
-                            if self.depth == 0 {
-                                continue;
+                let src_portal = match src_w {
+                    NodeW::Outer(p) | NodeW::Inner(p) => Some(p),
+                    _ => None,
+                };
+                if self.graph.recurse && src_portal.is_some() {
+                    match tgt_w {
+                        NodeW::Inner(p) => {
+                            if src_portal == Some(p) {
+                                if self.depth == 0 {
+                                    continue;
+                                }
+                                dst_depth -= 1
                             }
-                            dst_depth -= 1
                         }
-                    }
-                    NodeW::Inner(n) => {
-                        target = *n;
-                        if self.graph.recurse {
-                            dst_depth += 1
+                        NodeW::Outer(p) => {
+                            if src_portal == Some(p) {
+                                dst_depth += 1;
+                            }
                         }
+                        _ => {}
                     }
                 }
 
                 return Some(RDEdgeRef {
-                    src: (x.source(), self.depth),
+                    src: (source, self.depth),
                     dst: (target, dst_depth),
                     weight: x.weight(),
                     id: (x.id(), self.depth),
@@ -171,7 +185,7 @@ mod graph {
         type EdgeRef = RDEdgeRef<'a>;
         type EdgeReferences = RDEdgeReferences<'a>;
         fn edge_references(self) -> Self::EdgeReferences {
-            todo!("into edge references")
+            unimplemented!("into edge references")
         }
     }
 
@@ -216,8 +230,9 @@ mod graph {
         }
     }
 
+    #[derive(Debug)]
     pub(crate) struct DonutGraph {
-        inner: Graph<NodeW, u32, petgraph::Undirected>,
+        inner: StableGraph<NodeW, u32, petgraph::Undirected>,
         aa: NodeIndex,
         zz: NodeIndex,
         recurse: bool,
@@ -225,24 +240,17 @@ mod graph {
 
     impl DonutGraph {
         pub(crate) fn shortest_path(&self) -> Option<usize> {
-            //let m = petgraph::algo::dijkstra(&self.inner, self.aa, Some(self.zz), |_| 1usize);
-            //m.get(&self.zz).cloned()
             let tgt = (self.zz, 0);
-            let m = petgraph::algo::dijkstra(&self, (self.aa, 0), Some(tgt), |_| 1usize);
-            m.get(&tgt).cloned()
+            let m = petgraph::algo::dijkstra(&self, (self.aa, 0), Some(tgt), |e| {
+                *e.weight()
+            });
+            m.get(&tgt).map(|l| *l as usize)
         }
         pub(crate) fn recurse(&mut self, recurse: bool) {
             self.recurse = recurse;
         }
-        pub(crate) fn demo(&self) {
-            for nidx in self.inner.node_indices() {
-                for (neighbor, depth) in self.neighbors((nidx, 0)) {
-                    println!("{:?} -> {:?} ({})", nidx, neighbor, depth);
-                }
-            }
-        }
         pub(crate) fn from_map(m: Map) -> anyhow::Result<Self> {
-            let mut g = Graph::default();
+            let mut g = StableGraph::default();
             let mut node_map = BTreeMap::new();
             let mut aa = None;
             let mut zz = None;
@@ -264,13 +272,20 @@ mod graph {
 
             log::trace!("{:#?}", node_map);
 
+
             for (p, gates) in m.labels()? {
                 log::trace!("{:?}, v: {:?}", p, gates);
                 if p == Portal(('A', 'A')) {
-                    aa = Some(node_map.get(&gates.outer.unwrap()).unwrap());
+                    let tidx = *node_map.get(&gates.outer.unwrap()).unwrap();
+                    let tnw = g.node_weight_mut(tidx).unwrap();
+                    *tnw = NodeW::Terminal;
+                    aa = Some(tidx);
                     log::trace!("set aa to {:?}", aa);
                 } else if p == Portal(('Z', 'Z')) {
-                    zz = Some(node_map.get(&gates.outer.unwrap()).unwrap());
+                    let tidx = *node_map.get(&gates.outer.unwrap()).unwrap();
+                    let tnw = g.node_weight_mut(tidx).unwrap();
+                    *tnw = NodeW::Terminal;
+                    zz = Some(tidx);
                     log::trace!("set zz to {:?}", zz);
                 } else {
                     let inner = gates.inner.unwrap();
@@ -283,23 +298,70 @@ mod graph {
                         inner_nidx,
                         outer_nidx,
                     );
-                    let inner_p = g.add_node(NodeW::Inner(*outer_nidx));
-                    let outer_p = g.add_node(NodeW::Outer(*inner_nidx));
+                    let inner_p = g.add_node(NodeW::Inner(p));
+                    let outer_p = g.add_node(NodeW::Outer(p));
                     g.add_edge(*inner_nidx, inner_p, 0);
                     g.add_edge(*outer_nidx, outer_p, 0);
+                    g.add_edge(inner_p, outer_p, 1);
                 }
             }
-
-            Ok(DonutGraph {
+            let mut dg = DonutGraph {
                 inner: g,
-                aa: *aa.expect("no AA in map"),
-                zz: *zz.expect("no ZZ in map"),
+                aa: aa.expect("no AA in map"),
+                zz: zz.expect("no ZZ in map"),
                 recurse: false,
-            })
+            };
+            dg.compress();
+            Ok(dg)
         }
 
         pub(crate) fn dot(&self) -> String {
             format!("{:?}", petgraph::dot::Dot::new(&self.inner))
+        }
+        fn compress(&mut self) {
+            let mut g = self.inner.clone();
+            g.clear_edges();
+            for nidx in self.nodes().filter_map(|(nidx, nw)| {
+                if let NodeW::Space = nw {
+                    None
+                } else {
+                    Some(nidx)
+                }
+            }) {
+                let m = dijkstra(&self.inner, nidx, |e| {
+                    let dst: NodeIndex = e.target();
+                    let dst_w = self.inner.node_weight(dst).unwrap();
+                    let w = *e.weight();
+                    match dst_w {
+                        NodeW::Space => EdgeControl::Continue(w),
+                        _ => EdgeControl::Break(w),
+                    }
+                });
+
+                for (dst, w) in m {
+                    if nidx >= dst {
+                        continue;
+                    }
+                    let dst_w = self.inner.node_weight(dst).unwrap();
+                    match dst_w {
+                        NodeW::Space => {}
+                        _ => {
+                            g.add_edge(nidx, dst, w);
+                        }
+                    }
+                }
+            }
+            g.retain_nodes(|g, n| match *g.node_weight(n).unwrap() {
+                NodeW::Space => false,
+                _ => true,
+            });
+            self.inner = g;
+        }
+
+        fn nodes(&self) -> impl Iterator<Item = (NodeIndex, NodeW)> + '_ {
+            self.inner
+                .node_indices()
+                .map(move |idx| (idx, *self.inner.node_weight(idx).unwrap()))
         }
     }
 }
@@ -316,7 +378,7 @@ mod map {
     }
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-    pub(crate) struct Portal(pub (char, char));
+    pub struct Portal(pub (char, char));
 
     impl fmt::Debug for Portal {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

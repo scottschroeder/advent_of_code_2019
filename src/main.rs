@@ -8,6 +8,7 @@ use clap::{Arg, ArgMatches, SubCommand};
 extern crate log;
 
 pub mod util;
+pub mod graph;
 
 pub mod display;
 pub mod intcode;
@@ -88,6 +89,7 @@ pub mod challenges {
             (19, 2) => day19::part2(&input)?,
             (20, 1) => day20::part1(&input)?,
             (20, 2) => day20::part2(&input)?,
+            (20, 3) => day20::part3(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
