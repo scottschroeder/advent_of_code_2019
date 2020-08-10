@@ -1,11 +1,29 @@
 use anyhow::{anyhow as ah, Result};
+use self::shuf::{ShuffleMethod, Deck, Shuffle};
+
+pub(crate) mod parse;
+pub(crate) mod shuf;
 
 pub fn part1(input: &str) -> Result<String> {
+    let procedures = parse::parse(input)?;
+    log::debug!("Procedures: {:#?}", procedures);
     Ok(format!("{}", 0))
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    Ok(format!("{}", 0))
+    // let inc = ShuffleMethod::Increment(3);
+    // let v: Vec<usize> = (0..10).map(|idx| {
+    //     inc.index(idx, 10)
+    // }).collect();
+    shuf::test_inc(100);
+    Ok(format!("{:?}", 0))
+}
+
+fn shuffle(deck_size: u32, instructions: Vec<ShuffleMethod>) -> Deck {
+    let deck = Deck::new(deck_size);
+    let mut shuffle = Shuffle::new(deck);
+    shuffle.do_sequence(instructions);
+    shuffle.finalize()
 }
 
 #[cfg(test)]
