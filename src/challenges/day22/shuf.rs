@@ -35,6 +35,76 @@ impl ShuffleMethod {
     }
 }
 
+fn inverse_mod_wiki2(a: usize, n: usize) -> Option<usize> {
+    let mut t = 0;
+    let mut newt = 1;
+    let mut r = n as i64;
+    let mut newr = a as i64;
+
+    while newr != 0 {
+        let quotient = r / newr;
+
+        r = newr;
+        t = newt;
+
+        newr = r - quotient * newr;
+        newt = t - quotient * newt;
+    }
+
+    if r > 1 {
+        return None
+    }
+    if t < 0 {
+        t += n as i64;
+    }
+    Some(t as usize)
+}
+
+fn inverse_mod(a: usize, n: usize) -> Option<usize> {
+    let mut mn = (n as isize, a as isize);
+    let mut xy = (0, 1);
+   
+    while mn.1 != 0 {
+      xy = (xy.1, xy.0 - (mn.0 / mn.1) * xy.1);
+      mn = (mn.1, mn.0 % mn.1);
+    }
+
+    if mn.0 > 1 {
+        return None;
+    }
+   
+    while xy.0 < 0 {
+      xy.0 += n as isize;
+    }
+    Some(xy.0 as usize)
+  }
+
+fn inverse_mod_wiki(a: usize, n: usize) -> Option<usize> {
+    let mut x = 0;
+    let mut lastx = 1;
+    let mut lastremainder = n as i64;
+    let mut remainder = a as i64;
+
+    while remainder != 0 {
+        let quotient = lastremainder / remainder;
+
+        lastremainder = remainder;
+        x = lastx;
+
+        remainder = lastremainder - quotient * remainder;
+        // lastx = x - quotient * lastx;
+        lastx = x - quotient * lastx;
+    }
+
+    if lastremainder > 1 {
+        return None
+    }
+    if x < 0 {
+        x += n as i64;
+    }
+    Some(x as usize)
+}
+
 fn inc_loop(idx: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
     for round in 0..inc {
         let super_index = round * size + idx;
@@ -97,6 +167,13 @@ fn inc_exact_8_9(idx: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
     Ok(r)
 }
 fn inc_exact(idx: usize, inc: usize, deck: usize) -> anyhow::Result<usize> {
+    let inv = inverse_mod(inc, deck).ok_or_else(|| anyhow::anyhow!("invalid"))?;
+    log::trace!("inv({}, {}) -> {}", inc, deck, inv);
+    //Ok(((idx * inc * inv) % (inc * deck)) / inc)
+    Ok((idx * inv) % deck)
+}
+
+fn inc_exact_8_10(idx: usize, inc: usize, deck: usize) -> anyhow::Result<usize> {
     return inc_exact_8_9(idx, inc, deck);
     let offset = deck % inc;
     let backoffset = inc - offset;
@@ -163,11 +240,12 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
             }
         }
     }
-    // return;
+    return;
     let offset = deck % inc;
     let backoffset = inc - offset;
     let backoffsize = deck - offset;
-    log::debug!("o:{} b:{} s:{}", offset, backoffset, backoffsize);
+    let down_slope = deck / offset;
+    log::debug!("o:{} b:{} s:{} down:{}", offset, backoffset, backoffsize, down_slope);
     let mut vindex = vec![];
     let mut vrem = vec![];
     let mut vremback = vec![];
@@ -178,11 +256,13 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
         vrem.push(rem);
         let remback = (inc - rem) % inc;
         vremback.push(remback);
-        //let offmod = (offset-1 + i) % offset;
-        let offmod = ((offset - 1 + i) % offset) + 1;
+        // let offmod = ((offset - 1 + i) % offset) + 1;
+        let offmod = i % offset;
+        // let offmod = remback / offset;
+        // let offmod = 1;
         voffmod.push(offmod);
     }
-    for v in &[&vindex, &voffmod] {
+    for v in &[&vindex, &vremback, &voffmod] {
         for i in *v {
             print!("{:>2}", i);
         }
@@ -209,18 +289,23 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
         let offset_block = (offset - 1 + block) / offset;
         let skip = voffmod[i];
         let rank = (offset_block * skip * inc);
-        let round = (rank - i)/ offset;
-        let super_index = round * deck + i;
-        let r = (super_index) / inc;
+        // let round = (rank - i)/ offset;
+        // let super_index = round * deck + i;
+        // let r = (super_index) / inc;
+        // println!(
+        //     "{}: r:{} or:{} s:{} sn:{} round:{} super_idx:{} idx:{}",
+        //     i, block, offset_block, skip, rank, round, super_index, r
+        // );
         println!(
-            "{}: r:{} or:{} s:{} sn:{} round:{} super_idx:{} idx:{}",
-            i, block, offset_block, skip, rank, round, super_index, r
+            "{}: block:{} offset_block:{} skip:{} rank:{}",
+            i, block, offset_block, skip, rank
         );
     }
 }
 
 pub fn test_inc(max: usize) {
     let tc = &[
+        (6, 4),
         (10, 3),
         (5, 3),
         (5, 4),
@@ -231,10 +316,10 @@ pub fn test_inc(max: usize) {
         (21, 17),
         (8, 5),
     ];
-    for (deck, inc) in tc {
-        test_inc_shuf_all(*deck, *inc)
-    }
-    return;
+    // for (deck, inc) in tc {
+    //     test_inc_shuf_all(*deck, *inc);
+    // }
+    // return;
 
     for deck in 0..max {
         for inc in 1..deck {
