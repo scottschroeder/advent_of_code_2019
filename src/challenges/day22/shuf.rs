@@ -74,7 +74,7 @@ fn inc_exact_v2(pos: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
     Ok((size - (x % size)) % size)
 }
 
-fn inc_exact(idx: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
+fn inc_exact_8_9(idx: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
     let offset = size % inc;
     let backoffset = inc - offset;
     if inc % backoffset == 0 {
@@ -89,6 +89,38 @@ fn inc_exact(idx: usize, inc: usize, size: usize) -> anyhow::Result<usize> {
         "exact: idx:{} rem:{} offset:{} round:{}, super:{}, r:{}",
         idx,
         rem,
+        offset,
+        round,
+        super_index,
+        r
+    );
+    Ok(r)
+}
+fn inc_exact(idx: usize, inc: usize, deck: usize) -> anyhow::Result<usize> {
+    return inc_exact_8_9(idx, inc, deck);
+    let offset = deck % inc;
+    let backoffset = inc - offset;
+    if inc % backoffset == 0 {
+        return Err(anyhow::anyhow!("invalid"));
+    }
+    let i = idx;
+    let offmod = ((offset - 1 + i) % offset) + 1;
+
+    let block = (i + inc - 1) / inc;
+    let offset_block = (offset - 1 + block) / offset;
+    let skip = offmod;
+    let rank = offset_block * skip * inc;
+    let round = (rank - i)/ offset;
+    let super_index = round * deck + i;
+    let r = (super_index) / inc;
+    // let rem = idx % inc;
+    // let round = rem * backoffset;
+    // let round_fit = round % inc;
+    // let super_index = round_fit * deck + idx;
+    // let r = (super_index) % deck;
+    log::trace!(
+        "exact: idx:{} offset:{} round:{}, super:{}, r:{}",
+        idx,
         offset,
         round,
         super_index,
@@ -131,6 +163,7 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
             }
         }
     }
+    // return;
     let offset = deck % inc;
     let backoffset = inc - offset;
     let backoffsize = deck - offset;
@@ -143,18 +176,18 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
         vindex.push(i);
         let rem = i % inc;
         vrem.push(rem);
-        let remback = (inc-rem) % inc;
+        let remback = (inc - rem) % inc;
         vremback.push(remback);
-        let offmod = (offset-1 + i) % offset;
+        //let offmod = (offset-1 + i) % offset;
+        let offmod = ((offset - 1 + i) % offset) + 1;
         voffmod.push(offmod);
     }
-    for v in &[&vindex, &vrem, &vremback, &voffmod] {
+    for v in &[&vindex, &voffmod] {
         for i in *v {
             print!("{:>2}", i);
         }
         println!("");
     }
-
 
     let mut v = vec![];
     let mut c = 0;
@@ -172,11 +205,17 @@ fn test_inc_shuf_all(deck: usize, inc: usize) {
     }
     println!();
     for i in 0..deck {
-        let rank = (i+inc-1) / inc;
+        let block = (i + inc - 1) / inc;
+        let offset_block = (offset - 1 + block) / offset;
         let skip = voffmod[i];
-        let skipn = (skip*inc);
-        let rs = 0;
-        println!("{}: r:{} s:{} sn:{} rs:{}", i, rank, skip, skipn, rs);
+        let rank = (offset_block * skip * inc);
+        let round = (rank - i)/ offset;
+        let super_index = round * deck + i;
+        let r = (super_index) / inc;
+        println!(
+            "{}: r:{} or:{} s:{} sn:{} round:{} super_idx:{} idx:{}",
+            i, block, offset_block, skip, rank, round, super_index, r
+        );
     }
 }
 
@@ -185,13 +224,13 @@ pub fn test_inc(max: usize) {
         (10, 3),
         (5, 3),
         (5, 4),
-        (7, 5), 
+        (7, 5),
         (17, 8),
         (21, 5),
         (21, 10),
         (21, 17),
+        (8, 5),
     ];
-    // let tc = &[(10, 3), (5, 3), (5, 4)];
     for (deck, inc) in tc {
         test_inc_shuf_all(*deck, *inc)
     }
