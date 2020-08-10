@@ -7,23 +7,43 @@ pub(crate) mod shuf;
 pub fn part1(input: &str) -> Result<String> {
     let procedures = parse::parse(input)?;
     log::debug!("Procedures: {:#?}", procedures);
-    Ok(format!("{}", 0))
+    let shuffle = Shuffle::new(10007, procedures.as_slice())?;
+    let pos = shuffle.full().enumerate().find(|&(idx, c)| c == 2019).map(|(idx, c)| idx);
+    Ok(format!("{:?}", pos.unwrap()))
 }
+
+const PT2_DECK: usize = 119315717514047;
+const PT2_REPEAT: usize = 101741582076661;
+const PT2_INDEX: usize = 2020;
+const LOG_LOOP: usize = 1_000_000;
+
 
 pub fn part2(input: &str) -> Result<String> {
-    // let inc = ShuffleMethod::Increment(3);
-    // let v: Vec<usize> = (0..10).map(|idx| {
-    //     inc.index(idx, 10)
-    // }).collect();
-    shuf::test_inc(100);
-    Ok(format!("{:?}", 0))
-}
-
-fn shuffle(deck_size: u32, instructions: Vec<ShuffleMethod>) -> Deck {
-    let deck = Deck::new(deck_size);
-    let mut shuffle = Shuffle::new(deck);
-    shuffle.do_sequence(instructions);
-    shuffle.finalize()
+    let procedures = parse::parse(input)?;
+    log::debug!("Procedures: {:#?}", procedures);
+    let shuffle = Shuffle::new(PT2_DECK, procedures.as_slice())?;
+    let mut idx = PT2_INDEX;
+    let mut seen = std::collections::HashMap::new();
+    let mut c = 0;
+    let prev = loop {
+        if let Some(prev) = seen.insert(idx, c) {
+            break prev;
+        }
+        idx = shuffle.index(idx);
+        // if idx == PT2_INDEX {
+        //     break
+        // }
+        if c % LOG_LOOP == 0{
+            log::trace!("idx: {} {}", c / LOG_LOOP, seen.len());
+        }
+        c+=1;
+    };
+    let loop_size = c - prev;
+    let offset = (PT2_REPEAT - prev) % loop_size;
+    let fin = (0..offset)
+        .fold(idx, |idx, _| {shuffle.index(idx)});
+    //Ok(format!("{} -> {} ({}) offset:{} start:{:?}", prev, c, loop_size, offset, idx))
+    Ok(format!("{}", fin))
 }
 
 #[cfg(test)]
