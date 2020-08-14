@@ -1,7 +1,7 @@
 use crate::intcode::run_intcode;
 use crate::util::parse_intcode;
-use std::fmt;
 use anyhow::{anyhow as ah, Result};
+use std::fmt;
 
 const PROG_PT1: &str = include_str!("part1");
 const PROG_PT2: &str = include_str!("part2");

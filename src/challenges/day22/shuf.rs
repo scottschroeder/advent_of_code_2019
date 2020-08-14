@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ShuffleMethod {
+pub(crate) enum Technique {
     Stack,
     Cut(i64),
-    Increment(usize),
+    Increment(i64),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -13,10 +13,11 @@ pub(crate) struct Shuffle {
 }
 
 impl Shuffle {
-    pub(crate) fn new(deck: usize, methods: &[ShuffleMethod]) -> anyhow::Result<Shuffle> {
+    pub(crate) fn new(deck: usize, methods: &[Technique]) -> anyhow::Result<Shuffle> {
         let mut acc = Self::initilize(deck as i64);
         for m in methods.iter().rev() {
-            acc = acc.add_step(*m)?;
+            let s = acc.from_technique(*m)?;
+            acc = acc.join(s);
         }
         Ok(acc)
     }
@@ -29,7 +30,7 @@ impl Shuffle {
         }
     }
 
-    fn add_shuffle(self, other: Shuffle) -> Shuffle {
+    fn join(self, other: Shuffle) -> Shuffle {
         Shuffle {
             factor: mod_mul(self.factor, other.factor, self.size),
             offset: (mod_mul(self.offset, other.factor, self.size) + other.offset) % self.size,
@@ -43,34 +44,34 @@ impl Shuffle {
         let mut result = Shuffle::initilize(self.size);
         while exp > 0 {
             if exp & 1 > 0 {
-                result = result.add_shuffle(base);
+                result = result.join(base);
             }
-            base = base.add_shuffle(base);
+            base = base.join(base);
             exp >>= 1;
         }
         result
     }
-    
-    fn add_step(self, s: ShuffleMethod) -> anyhow::Result<Shuffle> {
+
+    fn from_technique(self, s: Technique) -> anyhow::Result<Shuffle> {
         let size = self.size;
         Ok(match s {
-            ShuffleMethod::Stack => Shuffle {
-                factor: self.factor * -1,
-                offset: ((self.offset + 1) * -1) % size,
+            Technique::Stack => Shuffle {
+                factor: -1,
+                offset: -1,
                 size,
             },
-            ShuffleMethod::Cut(c) => Shuffle {
-                factor: self.factor,
-                offset: (self.offset + c) % size,
+            Technique::Cut(c) => Shuffle {
+                factor: 1,
+                offset: c,
                 size,
             },
-            ShuffleMethod::Increment(inc) => {
-                let inv = inverse_mod(inc as i64, size).ok_or_else(|| {
+            Technique::Increment(inc) => {
+                let inv = inverse_mod(inc, size).ok_or_else(|| {
                     anyhow::anyhow!("incremnt {} not valid for deck size {}", inc, size)
                 })?;
                 Shuffle {
-                    factor: mod_mul(self.factor, inv, size),
-                    offset: mod_mul(self.offset, inv, size),
+                    factor: inv,
+                    offset: 0,
                     size,
                 }
             }
@@ -131,7 +132,7 @@ mod tests {
 
     #[test]
     fn inverse() {
-        let procedure = vec![ShuffleMethod::Stack];
+        let procedure = vec![Technique::Stack];
         let s = TS::new(10, procedure.as_slice()).unwrap();
         let actual = s.full().collect::<Vec<_>>();
         assert_eq!(actual, vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
@@ -139,21 +140,21 @@ mod tests {
 
     #[test]
     fn cut_forward() {
-        let procedure = vec![ShuffleMethod::Cut(3)];
+        let procedure = vec![Technique::Cut(3)];
         let s = TS::new(10, procedure.as_slice()).unwrap();
         let actual = s.full().collect::<Vec<_>>();
         assert_eq!(actual, vec![3, 4, 5, 6, 7, 8, 9, 0, 1, 2]);
     }
     #[test]
     fn cut_backward() {
-        let procedure = vec![ShuffleMethod::Cut(-4)];
+        let procedure = vec![Technique::Cut(-4)];
         let s = TS::new(10, procedure.as_slice()).unwrap();
         let actual = s.full().collect::<Vec<_>>();
         assert_eq!(actual, vec![6, 7, 8, 9, 0, 1, 2, 3, 4, 5,]);
     }
 
-    fn do_increment(inc: usize, size: usize) -> Vec<usize> {
-        let procedure = vec![ShuffleMethod::Increment(inc)];
+    fn do_increment(inc: i64, size: usize) -> Vec<usize> {
+        let procedure = vec![Technique::Increment(inc)];
         let s = TS::new(size, procedure.as_slice()).unwrap();
         s.full().collect::<Vec<_>>()
     }

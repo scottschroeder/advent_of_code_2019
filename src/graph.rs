@@ -13,11 +13,7 @@ pub mod traverse {
         Block,
     }
 
-    pub fn dijkstra<G, F, K>(
-        graph: G,
-        start: G::NodeId,
-        mut edge_cost: F,
-    ) -> HashMap<G::NodeId, K>
+    pub fn dijkstra<G, F, K>(graph: G, start: G::NodeId, mut edge_cost: F) -> HashMap<G::NodeId, K>
     where
         G: IntoEdges + Visitable,
         G::NodeId: Eq + Hash,

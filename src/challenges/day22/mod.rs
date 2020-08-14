@@ -1,8 +1,6 @@
-use self::parse::parse;
-use self::shuf::Shuffle;
-use anyhow::Result;
+use self::shuf::{Shuffle, Technique};
+use anyhow::{anyhow as ah, Result};
 
-pub(crate) mod parse;
 pub(crate) mod shuf;
 
 const PT1_DECK: usize = 10007;
@@ -31,6 +29,33 @@ pub fn part2(input: &str) -> Result<String> {
     log::debug!("Shuffle: {:?}", shuffle);
     let c = shuffle.index(PT2_INDEX);
     Ok(format!("{}", c))
+}
+
+fn parse(input: &str) -> Result<Vec<Technique>> {
+    input
+        .lines()
+        .map(|s| {
+            let last = s
+                .split(" ")
+                .last()
+                .ok_or_else(|| ah!("command did not have argument: {:?}", s))?;
+            if s.starts_with("cut") {
+                let cut = str::parse::<i64>(last)?;
+                Ok(Technique::Cut(cut))
+            } else if s.contains("deal with increment") {
+                let inc = str::parse::<i64>(last)?;
+                if inc < 1 {
+                    Err(ah!("increment argument <1: {:?}", s))
+                } else {
+                    Ok(Technique::Increment(inc))
+                }
+            } else if s.contains("deal into new stack") {
+                Ok(Technique::Stack)
+            } else {
+                Err(ah!("unknown command: {:?}", s))
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

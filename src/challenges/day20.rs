@@ -241,9 +241,7 @@ mod graph {
     impl DonutGraph {
         pub(crate) fn shortest_path(&self) -> Option<usize> {
             let tgt = (self.zz, 0);
-            let m = petgraph::algo::dijkstra(&self, (self.aa, 0), Some(tgt), |e| {
-                *e.weight()
-            });
+            let m = petgraph::algo::dijkstra(&self, (self.aa, 0), Some(tgt), |e| *e.weight());
             m.get(&tgt).map(|l| *l as usize)
         }
         pub(crate) fn recurse(&mut self, recurse: bool) {
@@ -271,7 +269,6 @@ mod graph {
             }
 
             log::trace!("{:#?}", node_map);
-
 
             for (p, gates) in m.labels()? {
                 log::trace!("{:?}, v: {:?}", p, gates);

@@ -7,8 +7,8 @@ use clap::{Arg, ArgMatches, SubCommand};
 
 extern crate log;
 
-pub mod util;
 pub mod graph;
+pub mod util;
 
 pub mod display;
 pub mod intcode;

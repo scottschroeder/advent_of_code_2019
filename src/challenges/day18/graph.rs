@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 
+use crate::graph::traverse::{dijkstra, EdgeControl};
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::EdgeRef;
-use crate::graph::traverse::{EdgeControl, dijkstra};
 
 pub(crate) trait ExploreState:
     fmt::Debug + Clone + PartialEq + PartialOrd + Ord + IntoIterator<Item = (usize, NodeIndex)>
