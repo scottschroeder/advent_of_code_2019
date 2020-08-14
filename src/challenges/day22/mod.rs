@@ -17,12 +17,17 @@ pub fn part1(input: &str) -> Result<String> {
 const PT2_DECK: usize = 119315717514047;
 const PT2_REPEAT: usize = 101741582076661;
 const PT2_INDEX: usize = 2020;
-const LOG_LOOP: usize = 1_000_000;
 
 // const PT2_DECK: usize = 107;
-// const PT2_REPEAT: usize = 102;
+// const PT2_REPEAT: usize = 3087;
 // const PT2_INDEX: usize = 3;
-// const LOG_LOOP: usize = 1;
+
+/*
+
+deal with increment 7
+deal into new stack
+deal into new stack
+*/
 
 /*
 0:  0 1 2 3 4 5 6 7 8 9
@@ -50,10 +55,24 @@ pub fn part2(input: &str) -> Result<String> {
     log::debug!("Procedures: {:#?}", procedures);
     let shuffle = Shuffle::new(PT2_DECK, procedures.as_slice())?;
     log::debug!("Shuffle: {:?}", shuffle);
+    // log::trace!("{:?}", iter_shuf(shuffle, PT2_DECK, PT2_REPEAT));
     let shuffle = shuffle.repeat(PT2_REPEAT as u64);
     log::debug!("Shuffle: {:?}", shuffle);
+    // log::trace!("{:?}", shuffle.full().collect::<Vec<_>>());
     let c = shuffle.index(PT2_INDEX);
     Ok(format!("{}", c))
+}
+
+fn iter_shuf(shuffle: Shuffle, size: usize, rep: usize) -> Vec<usize> {
+    let mut iter_shuf = Vec::with_capacity(size);
+    for master_idx in 0..size {
+        let mut idx = master_idx;
+        for n in 0..rep {
+            idx = shuffle.index(idx);
+        }
+        iter_shuf.push(idx);
+    }
+    iter_shuf
 }
 
 pub fn part2loop(input: &str) -> Result<String> {
@@ -73,9 +92,6 @@ pub fn part2loop(input: &str) -> Result<String> {
         // if idx == PT2_INDEX {
         //     break
         // }
-        if c % LOG_LOOP == 0{
-            log::trace!("idx: {} {}", c / LOG_LOOP, seen.len());
-        }
         c+=1;
     };
     let loop_size = c - prev;
@@ -98,6 +114,6 @@ mod test {
 
     #[test]
     fn verify_part2() {
-        assert_eq!(part2(DAY22_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY22_INPUT).unwrap().as_str(), "55574110161534")
     }
 }

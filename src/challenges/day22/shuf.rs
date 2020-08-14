@@ -37,16 +37,48 @@ impl Shuffle {
             size: size as i64,
         }
     }
-    pub(crate) fn repeat(self, n: u64) -> Shuffle {
-        let size = self.size;
-        let fr = modpow(self.factor, n, size);
-        let fr1 = modpow(self.factor, n+1, size);
+    fn add_shuffle(self, other: Shuffle) -> Shuffle {
         Shuffle {
-            factor: fr,
-            offset: (fr1 -1) / (self.factor - 1),
-            size,
+            factor: mod_mul(self.factor, other.factor, self.size),
+            offset: (mod_mul(self.offset, other.factor, self.size) + other.offset) % self.size,
+            size: self.size,
         }
     }
+    pub(crate) fn repeat(self, n: u64) -> Shuffle {
+        let mut base = self;
+        let mut exp = n;
+        let mut result = Shuffle::initilize(self.size as usize);
+        while exp > 0 {
+            if exp & 1 > 0 {
+                result = result.add_shuffle(base);
+            }
+            base = base.add_shuffle(base);
+            exp >>= 1;
+        }
+        result
+    }
+    // pub(crate) fn repeat(self, n: u64) -> Shuffle {
+    //     if n == 0 {
+    //         return Shuffle::initilize(self.size as usize);
+    //     } else if n == 1 {
+    //         return self
+    //     }
+    //     let size = self.size;
+    //     let fr = modpow(self.factor, n, size);
+    //     let sum_xn = if self.factor == 1 {
+    //         n as i64
+    //     } else {
+    //         (fr -1 ) / (self.factor - 1)
+    //         // (fr -1 )
+    //     };
+    //     let s2 = inverse_mod((self.factor - 1) as usize, size as usize).unwrap();
+    //     // log::trace!("f:{} o:{} fr:{} Exn:{}", self.factor, self.offset, fr, sum_xn);
+    //     Shuffle {
+    //         factor: fr,
+    //         offset: mod_mul(sum_xn, self.offset, size),
+    //         size,
+    //     }
+    // }
     fn add_step(self, s: ShuffleActor) -> Shuffle {
         let size = self.size;
         let mut new = match s {
@@ -61,8 +93,8 @@ impl Shuffle {
                 size,
             },
             ShuffleActor::Increment(i) => Shuffle {
-                factor: mod_mul(self.factor, i as u64, size),
-                offset: mod_mul(self.offset ,i as u64, size),
+                factor: mod_mul(self.factor, i as i64, size),
+                offset: mod_mul(self.offset, i as i64, size),
                 size,
             },
         };
@@ -71,27 +103,23 @@ impl Shuffle {
         new
     }
     pub(crate) fn index(&self, idx: usize) -> usize {
-        let p = mod_mul(self.factor, idx as u64, self.size);
-        ((p + self.offset + self.size) % self.size) as usize
+        let p = mod_mul(self.factor, idx as i64, self.size);
+        ((p + self.offset + 2*self.size) % self.size) as usize
     }
     pub(crate) fn full(&self) -> impl Iterator<Item = usize> + '_ {
         (0..self.size as usize).map(move |idx| self.index(idx))
     }
 }
 
-fn mod_mul(a: i64, b: u64, n: i64) -> i64 {
+fn mod_mul(a: i64, b: i64, n: i64) -> i64 {
     // return (a * b) % n;
-    let neg = if a < 0 {
-        -1
-    } else {
-        1
-    };
-    let mut a = (a * neg) % n;
-    let mut b = b;
+    let mut a = a % n;
+    let neg = if b < 0 { -1 } else { 1 };
+    let mut b = b * neg;
     let mut res = 0; // Initialize result
-    while b > 0 {
+    while b != 0 {
         // If b is odd, add 'a' to result
-        if b % 2 == 1 {
+        if b & 1 == 1 {
             res = (res + a) % n;
         }
 
@@ -99,36 +127,36 @@ fn mod_mul(a: i64, b: u64, n: i64) -> i64 {
         a = (a * 2) % n;
 
         // Divide b by 2
-        b /= 2;
+        b >>= 1;
+        // b /= 2;
     }
 
     // Return result
-    (res * neg) % n
+    res * neg % n
 }
 
-fn modpow(base: i64, exp: u64, modulus: i64) -> i64{
-    let mut neg = if base < 0 {
-        -1
-    } else {
-        1
-    };
-    if exp % 2 == 0 {
-        neg = 1;
-    }
+// fn modpow(base: i64, exp: u64, modulus: i64) -> i64{
+//     let mut neg = if base < 0 {
+//         -1
+//     } else {
+//         1
+//     };
+//     if exp % 2 == 0 {
+//         neg = 1;
+//     }
 
-
-  let mut base = (base * neg % modulus) as u64;
-  let mut exp = exp;
-  let mut result = 1;
-  while exp > 0 {
-    if exp & 1 > 0 {
-        result = mod_mul(result,  base, modulus);
-    }
-    base = mod_mul(base as i64,  base, modulus) as u64;
-    exp >>= 1;
-  }
-  neg * result
-}
+//   let mut base = (base * neg % modulus) as u64;
+//   let mut exp = exp;
+//   let mut result = 1;
+//   while exp > 0 {
+//     if exp & 1 > 0 {
+//         result = mod_mul(result,  base, modulus);
+//     }
+//     base = mod_mul(base as i64,  base, modulus) as u64;
+//     exp >>= 1;
+//   }
+//   neg * result
+// }
 
 impl ShuffleActor {
     fn from_method(method: &ShuffleMethod, size: usize) -> anyhow::Result<ShuffleActor> {
@@ -293,5 +321,29 @@ mod tests {
         let s = TS::new(10, procedures.as_slice()).unwrap();
         let actual = s.full().collect::<Vec<_>>();
         assert_eq!(actual, vec![9, 2, 5, 8, 1, 4, 7, 0, 3, 6]);
+    }
+
+    fn check_mod_mul_small(a: i64, b: i64, n: i64) {
+        assert_eq!(mod_mul(a, b, n), (a * b) % n);
+    }
+    #[test]
+    fn modmul_pos() {
+        check_mod_mul_small(3, 4, 12);
+        check_mod_mul_small(3, 4, 10);
+    }
+    #[test]
+    fn modmul_rneg() {
+        check_mod_mul_small(-3, 4, 12);
+        check_mod_mul_small(-3, 4, 10);
+    }
+    #[test]
+    fn modmul_lneg() {
+        check_mod_mul_small(3, -4, 12);
+        check_mod_mul_small(3, -4, 10);
+    }
+    #[test]
+    fn modmul_double_neg() {
+        check_mod_mul_small(-3, -4, 12);
+        check_mod_mul_small(-3, -4, 10);
     }
 }
