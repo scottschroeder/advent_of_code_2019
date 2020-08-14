@@ -50,17 +50,18 @@ impl Shuffle {
         }
         result
     }
+    
     fn add_step(self, s: ShuffleMethod) -> anyhow::Result<Shuffle> {
         let size = self.size;
-        let mut new = match s {
+        Ok(match s {
             ShuffleMethod::Stack => Shuffle {
                 factor: self.factor * -1,
-                offset: (self.offset - size + 1) * -1,
+                offset: ((self.offset + 1) * -1) % size,
                 size,
             },
             ShuffleMethod::Cut(c) => Shuffle {
                 factor: self.factor,
-                offset: self.offset + c,
+                offset: (self.offset + c) % size,
                 size,
             },
             ShuffleMethod::Increment(inc) => {
@@ -73,16 +74,15 @@ impl Shuffle {
                     size,
                 }
             }
-        };
-        new.factor = new.factor % size;
-        new.offset = (new.offset + size) % size;
-        Ok(new)
+        })
     }
 
     pub(crate) fn index(&self, idx: usize) -> usize {
-        let p = mod_mul(self.factor, idx as i64, self.size);
-        ((p + self.offset + 2 * self.size) % self.size) as usize
+        let product = mod_mul(self.factor, idx as i64, self.size);
+        let adjusted = (product + self.offset) % self.size;
+        ((adjusted + self.size) % self.size) as usize
     }
+
     pub(crate) fn full(&self) -> impl Iterator<Item = usize> + '_ {
         (0..self.size as usize).map(move |idx| self.index(idx))
     }
