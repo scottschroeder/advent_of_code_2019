@@ -54,6 +54,7 @@ mod intcode_mem {
         type Output = Int;
         fn index(&self, index: usize) -> &Self::Output {
             if index >= self.inner.len() {
+                // log::warn!("trying to read beyond mem: {}/{}", index, self.inner.len());
                 &0
             } else {
                 &self.inner[index]
@@ -104,13 +105,24 @@ mod intcode_mem {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct IntCode<IO> {
     inner: Memory,
     pc: usize,
     relative_base: Int,
-    halt: bool,
+    pub halt: bool,
     io_device: IO,
+}
+
+impl<IO> std::fmt::Debug for IntCode<IO> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IntCode")
+            // .field("inner", &self.inner)
+            .field("pc", &self.pc)
+            .field("relative_base", &self.relative_base)
+            .field("halt", &self.halt)
+            .finish()
+    }
 }
 
 impl<I: Input, O: Output> IntCode<FusedIO<I, O>> {
@@ -154,6 +166,7 @@ impl<IO: Input + Output> IntCode<IO> {
     pub fn run_one(&mut self) -> Result<()> {
         let (instr, modes) = parse_instruction(self.inner[self.pc])?;
         let mut update_pc = true;
+        // log::trace!("{:?} {:?} {:?}", instr, modes, self);
         match instr {
             Instruction::Add => {
                 let lhs = *self.get_arg(0, modes);

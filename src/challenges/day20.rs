@@ -379,7 +379,7 @@ mod map {
 
     impl fmt::Debug for Portal {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "Portal({}{})", self.0.0, self.0.1)
+            write!(f, "Portal({}{})", (self.0).0, (self.0).1)
         }
     }
 
