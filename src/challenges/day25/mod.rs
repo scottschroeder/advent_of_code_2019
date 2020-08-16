@@ -16,11 +16,11 @@ mod test {
 
     #[test]
     fn verify_part1() {
-        assert_eq!(part1(DAY24_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part1(DAY25_INPUT).unwrap().as_str(), "0")
     }
 
     #[test]
     fn verify_part2() {
-        assert_eq!(part2(DAY24_INPUT).unwrap().as_str(), "0")
+        assert_eq!(part2(DAY25_INPUT).unwrap().as_str(), "0")
     }
 }
