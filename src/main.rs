@@ -104,7 +104,6 @@ pub mod challenges {
             (24, 1) => day24::part1(&input)?,
             (24, 2) => day24::part2(&input)?,
             (25, 1) => day25::part1(&input)?,
-            (25, 2) => day25::part2(&input)?,
             (d, p) => {
                 return Err(anyhow::anyhow!(
                     "unimplemented challenge day {} part {}",
