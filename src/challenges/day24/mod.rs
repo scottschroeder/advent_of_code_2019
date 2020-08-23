@@ -1,5 +1,5 @@
-use anyhow::{anyhow as ah, Result};
 use self::grid::{Grid, RecursiveGrid};
+use anyhow::Result;
 use std::collections::HashSet;
 
 mod grid;
@@ -16,13 +16,16 @@ pub fn part1(input: &str) -> Result<String> {
 }
 
 pub fn part2(input: &str) -> Result<String> {
-    // self::grid::demo();
+    Ok(format!("{:?}", recurse_n(input, 200)?))
+}
+
+fn recurse_n(input: &str, rounds: usize) -> Result<usize> {
     let mut g = RecursiveGrid::from_map(input)?;
-    for _ in 0..200 {
+    for _ in 0..rounds {
         g.update();
     }
     log::trace!("{}", g);
-    Ok(format!("{:?}", g.count()))
+    Ok(g.count())
 }
 
 #[cfg(test)]
@@ -38,5 +41,14 @@ mod test {
     #[test]
     fn verify_part2() {
         assert_eq!(part2(DAY24_INPUT).unwrap().as_str(), "1896")
+    }
+
+    #[test]
+    fn verify_p1ex1() {
+        assert_eq!(part1(DAY24_EX1).unwrap().as_str(), "2129920")
+    }
+    #[test]
+    fn verify_p2ex1() {
+        assert_eq!(recurse_n(DAY24_EX1, 10).unwrap(), 99)
     }
 }

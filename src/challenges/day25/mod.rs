@@ -1,6 +1,5 @@
 use anyhow::{anyhow as ah, Result};
 
-
 pub fn part1(input: &str) -> Result<String> {
     Ok(format!("{:?}", 0))
 }

@@ -32,64 +32,6 @@ impl IntoIterator for RPoint {
     }
 }
 
-pub fn demo() {
-    let cases = &[
-        (
-            "19",
-            RPoint {
-                p: Point::new(3, 3),
-                r: 1,
-            },
-        ),
-        (
-            "G",
-            RPoint {
-                p: Point::new(1, 1),
-                r: 0,
-            },
-        ),
-        (
-            "D",
-            RPoint {
-                p: Point::new(3, 0),
-                r: 0,
-            },
-        ),
-        (
-            "E",
-            RPoint {
-                p: Point::new(4, 0),
-                r: 0,
-            },
-        ),
-        (
-            "14",
-            RPoint {
-                p: Point::new(3, 2),
-                r: 1,
-            },
-        ),
-        (
-            "N",
-            RPoint {
-                p: Point::new(3, 2),
-                r: 0,
-            },
-        ),
-        (
-            "L",
-            RPoint {
-                p: Point::new(1, 2),
-                r: 0,
-            },
-        ),
-    ];
-    for (n, rp) in cases {
-        let adj = rp.iter().collect::<Vec<_>>();
-        println!("{}: {:?}", n, adj);
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Up,
