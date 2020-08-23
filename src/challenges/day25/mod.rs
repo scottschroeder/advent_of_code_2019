@@ -1,7 +1,11 @@
 use anyhow::{anyhow as ah, Result};
+use crate::intcode::run_intcode;
+use crate::util::parse_intcode;
 
 pub fn part1(input: &str) -> Result<String> {
-    Ok(format!("{:?}", 0))
+    // let intcode = parse_intcode(input)?;
+    // let (_, out) = run_intcode(intcode, vec![1])?;
+    Ok(format!("{}", 0))
 }
 
 pub fn part2(input: &str) -> Result<String> {
