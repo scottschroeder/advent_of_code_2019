@@ -31,6 +31,12 @@ pub fn part2(input: &str) -> Result<String> {
     let shortest = g.shortest_path(start).unwrap();
     Ok(format!("{}", shortest))
 }
+pub fn part3(input: &str) -> Result<String> {
+    let m = map_reader::Map::parse(input);
+    let g = graph::CaveGraph::from_map(m);
+    Ok(g.dot())
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Tile {

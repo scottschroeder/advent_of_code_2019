@@ -90,6 +90,7 @@ pub mod challenges {
             (17, 3) => day17::part2_map(&input)?,
             (18, 1) => day18::part1(&input)?,
             (18, 2) => day18::part2(&input)?,
+            (18, 3) => day18::part3(&input)?,
             (19, 1) => day19::part1(&input)?,
             (19, 2) => day19::part2(&input)?,
             (20, 1) => day20::part1(&input)?,
